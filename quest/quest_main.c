@@ -21,6 +21,6 @@ int SDL_main(int argc,char **argv) {
     char *args[]={"TimeCrisisVR","roms","--window",NULL};
     int result=tc_game_main(3,args);
     __android_log_print(ANDROID_LOG_ERROR,"TCVR","Game ended: %d; see files/timecris-vr.log",result);
-    if(result) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"Time Crisis VR","Start fehlgeschlagen. Diagnose: files/timecris-vr.log (adb run-as).",NULL);
+    if(result) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"Time Crisis VR","Startup failed. Log: files/timecris-vr.log (adb run-as).",NULL);
     return result;
 }

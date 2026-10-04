@@ -4,7 +4,7 @@ A standalone, experimental VR port of **Time Crisis** for **Meta Quest 3**, with
 
 **Built on [spacestate1/namco22-decompile](https://github.com/spacestate1/namco22-decompile).** This project adds the Android/OpenXR host, Quest renderer, VR aiming, player weapon and controls to that reconstruction. The original arcade logic and shared engine come from upstream; this is not an independent recreation of the game.
 
-[Download the APK](https://github.com/DR-89/time-crisis-vr/releases/latest) · [Deutsch](docs/README.de.md) · [Technical notes](docs/DEVELOPMENT.md) · [Attribution](NOTICE.md)
+[Download the APK](https://github.com/DR-89/time-crisis-vr/releases/latest) · [Quickstart](docs/QUICKSTART.md) · [Technical notes](docs/DEVELOPMENT.md) · [Attribution](NOTICE.md)
 
 ![Time Crisis running on Quest 3, with the tracked player pistol](docs/images/gameplay.png)
 
@@ -12,18 +12,18 @@ A standalone, experimental VR port of **Time Crisis** for **Meta Quest 3**, with
 
 ## Current status
 
-**v0.7.1 — experimental, ARM64, Meta Quest 3.** Gameplay, the player weapon, saved laser settings, menu controls and physical ducking have been tested on a Quest 3. The user confirmed that physical ducking worked well. A complete playthrough and every boss/edge-case hit have not been verified.
+**v0.7.2 — experimental, ARM64, Meta Quest 3.** Gameplay, the player weapon, saved laser settings, menu controls and physical ducking have been tested on a Quest 3. The user confirmed that physical ducking worked well. A complete playthrough and every boss/edge-case hit have not been verified.
 
 The headset is asked to run at **120 Hz**. This is a target, not a guarantee of perfectly stable 120 FPS. See the measured results below.
 
 ## Download and install
 
-1. Download **`TimeCrisisVR-v0.7.1-quest3.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases/latest).
+1. Download **`TimeCrisisVR-v0.7.2-quest3.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases/latest).
 2. Enable developer mode on the Quest, connect it by USB and allow USB debugging.
 3. Install the APK with SideQuest or Android platform-tools:
 
    ```sh
-   adb install -r TimeCrisisVR-v0.7.1-quest3.apk
+   adb install -r TimeCrisisVR-v0.7.2-quest3.apk
    ```
 
 4. Open **Time Crisis VR (Experimental)** from the Quest library's **Unknown sources** section.
@@ -59,7 +59,7 @@ The importer verifies every required chip by SHA-256 and accepts checksum-matchi
 
 **Laser:** off by default, saved between sessions. Turning it off hides only the beam; aiming and shooting still work.
 
-**Cover mode:** left trigger by default. Open the left menu and press **Y** to choose **PHYSISCH DUCKEN** (physical ducking) or **LINKER TRIGGER** (left trigger). Both settings are saved together. Y has no mode-switching effect outside the menu. The current in-game menu uses German labels.
+**Cover mode:** left trigger by default. Open the left menu and press **Y** to choose **PHYSICAL DUCKING** or **LEFT TRIGGER**. Both settings are saved together. Y has no mode-switching effect outside the menu. The in-game menu and all documentation use English.
 
 ### Physical ducking
 
@@ -71,7 +71,7 @@ Choose physical ducking in the menu while upright. Press **X** while standing or
 - X recalibrates for a different standing/seated position. Height is recalibrated each app session; the selected mode is saved.
 - Missing head tracking releases the virtual pedal. Cover input does not depend on the right controller being visible.
 
-![Options menu with physical ducking selected](docs/images/options.png)
+![Options menu with physical ducking selected](docs/images/options-english.png)
 
 ## What the port includes
 
@@ -97,7 +97,7 @@ A two-minute active gameplay test of **v0.6.0** on Quest 3, with both controller
 | Mean / p95 runtime CPU + GPU time | 5.21 / 6.84 ms |
 | Per-eye render resolution | 1374 × 1440 |
 
-One-second FPS counters can read slightly above 120 due to sample boundaries. They do not prove that every frame arrived on time. Short hitches remain, particularly on first loading or new textures. New textures may briefly appear coarser while the existing texture budget refines them. These results predate the menu/ducking/import changes and are **not a new benchmark of v0.7.1**. See [performance details](docs/PERFORMANCE.md).
+One-second FPS counters can read slightly above 120 due to sample boundaries. They do not prove that every frame arrived on time. Short hitches remain, particularly on first loading or new textures. New textures may briefly appear coarser while the existing texture budget refines them. These results predate the menu/ducking/import changes and are **not a new benchmark of v0.7.2**. See [performance details](docs/PERFORMANCE.md).
 
 ## Known limitations
 

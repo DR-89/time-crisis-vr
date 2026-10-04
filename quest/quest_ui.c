@@ -31,17 +31,17 @@ static void panel(bool laser,bool physical_crouch,bool saved){
         uint8_t *p=pixels+(y*WIDTH+x)*4;bool border=x<2||x>=WIDTH-2||y<2||y>=HEIGHT-2;
         p[0]=border?54:12;p[1]=border?183:19;p[2]=border?207:29;p[3]=border?255:240;
     }
-    text(24,20,"PAUSE / OPTIONEN",181,207,220);
-    text(24,62,"LASER:",255,255,255);text(160,62,laser?"AN":"AUS",laser?94:228,laser?226:235,laser?151:239);
-    text(336,62,"B: EIN / AUS",181,207,220);
-    text(24,108,physical_crouch?"DECKUNG: PHYSISCH DUCKEN":"DECKUNG: LINKER TRIGGER",255,255,255);
-    text(24,148,"Y LINKS: MODUS WECHSELN",181,207,220);
-    text(24,194,physical_crouch?"AUFRECHT: RAUS / DUCKEN: DECKUNG":"HALTEN: RAUS / LOSLASSEN: DECKUNG",255,255,255);
+    text(24,20,"PAUSE / OPTIONS",181,207,220);
+    text(24,62,"LASER:",255,255,255);text(160,62,laser?"ON":"OFF",laser?94:228,laser?226:235,laser?151:239);
+    text(336,62,"B: ON / OFF",181,207,220);
+    text(24,108,physical_crouch?"COVER: PHYSICAL DUCKING":"COVER: LEFT TRIGGER",255,255,255);
+    text(24,148,"Y LEFT: CHANGE MODE",181,207,220);
+    text(24,194,physical_crouch?"UPRIGHT: OUT / DUCK: COVER":"HOLD: OUT / RELEASE: COVER",255,255,255);
     if(physical_crouch){
-        text(24,236,"X LINKS: HOEHE NEU SETZEN",181,207,220);
-        text(24,264,"DAZU AUFRECHT STEHEN / SITZEN",181,207,220);
+        text(24,236,"X LEFT: RESET UPRIGHT HEIGHT",181,207,220);
+        text(24,264,"STAND OR SIT UPRIGHT FIRST",181,207,220);
     }
-    text(24,314,saved?"MENU LINKS: FORTSETZEN":"SPEICHERN FEHLGESCHLAGEN",saved?170:255,saved?193:150,saved?206:150);
+    text(24,314,saved?"LEFT MENU: RESUME":"SAVING FAILED",saved?170:255,saved?193:150,saved?206:150);
 }
 static GLuint shader(GLenum type,const char *source){
     GLuint s=glCreateShader(type);glShaderSource(s,1,&source,NULL);glCompileShader(s);GLint ok;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);
