@@ -16,9 +16,11 @@ affiliated with or endorsed by Namco, Bandai Namco, or Meta.
 - **Windows dependencies:** zlib 1.3.1, SDL 2.30.11, Khronos OpenXR 1.1.43,
   LLVM/MinGW runtime and winpthreads. Their notices are included under `licenses`
   in the portable Windows package.
-- **Player weapon model:** generated for this project using Tripo3D; asset provenance,
-  geometry and checksums are recorded in `quest/assets/models/player-gun.json`.
-  It is a custom player-held model, not a model extracted from Time Crisis.
+- **Player weapon model:** [Lowpoly Pistol by FireWarden](https://opengameart.org/content/lowpoly-pistol),
+  released under CC0. Imported from the user-supplied QuestRetroDepth header, with
+  separate body, trigger and slide parts. Provenance, geometry and checksums are
+  recorded in `quest/assets/models/player-gun.json`. The model is not extracted
+  from Time Crisis. The earlier Tripo3D model remains in the Git history.
 - **Time Crisis, original game program, graphics, sound, ROM contents and trademarks:**
   belong to their respective original rights holders. They are not covered by this
   project's MIT license. Bundled APK and Windows releases include these original game files;

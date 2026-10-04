@@ -1,5 +1,7 @@
 # Time Crisis VR for Windows
 
+**Private working build: 0.8.1-gun-test.1.** These controls describe this local test build, which has not been published. Public v0.8.1 retains the previous weapon and trigger-cover controls.
+
 Experimental native **Windows x64 / OpenXR / OpenGL 4.3** port, built on
 [spacestate1/namco22-decompile](https://github.com/spacestate1/namco22-decompile).
 The same original game simulation, tracked pistol, laser option and cover modes
@@ -33,22 +35,27 @@ recommendation, capped at 2160 pixels on the longer edge.
 
 ## VR controls
 
-| Action | Right-handed (default) | Left-handed |
+| Action | Default hand: right | Default hand: left |
 | --- | --- | --- |
-| Aim the 3D pistol / fire | Right controller / trigger | Left controller / trigger |
+| Select weapon hand / fire | Press either controller trigger | Press either controller trigger |
 | Insert three credits | A right | X left |
 | Toggle laser silently | B right | Y left |
 | Pause / options / resume | Left menu / keyboard Escape | Left menu / keyboard Escape |
-| Change weapon hand, in options | Right thumbstick click / keyboard H | Right thumbstick click / keyboard H |
+| Set default hand, in options | Right thumbstick click / keyboard H | Right thumbstick click / keyboard H |
 | Change cover mode, in options | Y left | B right |
 | Recenter / calibrate upright height | X left / keyboard R | A right / keyboard R |
-| Trigger cover: hold to leave cover; release to hide/reload | Left trigger | Right trigger |
+| Grip cover: hold to leave cover; release both to hide/reload | Either grip button | Either grip button |
 | Physical cover: hide/reload; leave cover | Duck; return upright | Duck; return upright |
 
-Open options, then **click the right thumbstick** to change **WEAPON HAND**.
-The pistol, aim and recoil vibration use the selected controller. Weapon hand,
-laser and cover preferences are saved together. After switching hands, release
-the new firing trigger once before shooting. The left menu button always resumes.
+Press a trigger to select that controller and fire. Aim and recoil vibration follow
+that hand. Hold either grip to leave cover; release both to hide and reload.
+The two triggers are no longer cover inputs. Physical ducking remains optional.
+
+Open options and **click the right thumbstick** to change **DEFAULT HAND**.
+This saved preference sets the starting hand and the face-button layout above.
+Automatic trigger handoffs do not change the face buttons or rewrite preferences.
+Held triggers cannot repeatedly switch hands. Release a trigger after tracking or
+focus loss before firing again. The left menu button always resumes.
 
 The laser is **on by default**. Existing saved choices are retained.
 For physical ducking, choose that mode in options, sit or stand upright, then
@@ -68,7 +75,7 @@ it does not need a headset or an active OpenXR runtime.
 | C | Insert three credits |
 | L | Toggle the laser |
 | Escape | Pause / resume |
-| H, while paused | Change the saved VR weapon hand |
+| H, while paused | Change the saved VR default hand |
 
 Monitor mode always uses the mouse/keyboard cover input. Physical ducking and
 the tracked 3D pistol are VR features. The original game advances at approximately
@@ -111,3 +118,9 @@ OpenXR input code, including pose/haptic routing, both cover modes, held-button
 handling and tracking/focus loss. Both menu layouts pass stereo rendering tests.
 The tester confirmed left-handed play on standalone Quest 3. A separate live PCVR
 test of the new layout is still pending.
+
+This private gun/control build additionally passes shared-host input tests for
+either-grip cover, trigger handoffs, short taps, fire edges, simultaneous presses
+and tracking/focus loss. GLES rendering tests cover separate slide and trigger
+motion, stereo and a fixed aim origin. Live Quest and PCVR confirmation of these
+changes is still pending.

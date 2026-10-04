@@ -1,5 +1,7 @@
 # Time Crisis VR — Quickstart
 
+**Private working build: 0.8.1-gun-test.1.** These controls describe this local test build, which has not been published. Public v0.8.1 retains the previous weapon and trigger-cover controls.
+
 A standalone experimental port for **Meta Quest 3**, built on **[spacestate1/namco22-decompile](https://github.com/spacestate1/namco22-decompile)**. See the [README](../README.md) for full documentation.
 
 ## Install
@@ -10,19 +12,21 @@ After the arcade startup, press **A right**, wait briefly for three credits, the
 
 ## Controls
 
-| Action | Right-handed (default) | Left-handed |
+| Action | Default hand: right | Default hand: left |
 | --- | --- | --- |
-| Aim / shoot | Right controller / trigger | Left controller / trigger |
+| Select weapon hand / shoot | Press either controller trigger | Press either controller trigger |
 | Insert three credits | A right | X left |
 | Toggle laser silently | B right | Y left |
 | Open options / resume | Left menu button | Left menu button |
-| Change weapon hand, in options | Right thumbstick click | Right thumbstick click |
+| Set default hand, in options | Right thumbstick click | Right thumbstick click |
 | Change cover mode, in options | Y left | B right |
 | Recenter / calibrate upright height | X left | A right |
-| Hold: leave cover; release: hide/reload | Left trigger | Right trigger |
+| Hold: leave cover; release both: hide/reload | Either grip button | Either grip button |
 | Physical cover: hide/reload; leave cover | Duck; return upright | Duck; return upright |
 
-To play left-handed, open options with the **left menu button**, then click the **right thumbstick** until **WEAPON HAND: LEFT** appears. The pistol and recoil move to the left controller, and the other controls follow the table above. Resume with the left menu button. Release the new firing trigger once after switching.
+Press the **left trigger** to move the pistol left and shoot; press the **right trigger** to move it right and shoot. Hold **either grip button** to leave cover. Release **both** to hide and reload.
+
+In options, click the **right thumbstick** to change **DEFAULT HAND**. This saves the starting hand and the face-button layout above. Trigger handoffs leave the button layout unchanged. Resume with the left menu button. Release a trigger after tracking/focus loss before firing again.
 
 For physical ducking, select **PHYSICAL DUCKING** in the menu, sit or stand upright and press **X** (right-handed) or **A** (left-handed). Lowering your head by about 20 cm enters cover. Returning to within 12 cm of the reference height leaves cover. Weapon hand, cover mode and laser preference are saved; head height is calibrated for each session.
 

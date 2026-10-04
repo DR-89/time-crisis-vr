@@ -28,7 +28,7 @@ def read_options(path):
     result=Options();load(path,C.byref(result));return tuple(getattr(result,k) for k,_ in Options._fields_)
 with tempfile.TemporaryDirectory(prefix='tcvr-options-') as tmp:
     config=Path(tmp)/'quest-options.cfg';path=str(config).encode()
-    assert read_options(path)==(True,False,False),'Default: laser ON, trigger cover, right-handed'
+    assert read_options(path)==(True,False,False),'Default: laser ON, grip cover, right-handed'
     config.write_text('laser_enabled=1\n');assert read_options(path)==(True,False,False)
     config.write_text('laser_enabled=0\nphysical_crouch=1\n');assert read_options(path)==(False,True,False),'Old settings survive upgrade; existing players stay right-handed'
     for values in itertools.product((False,True),repeat=3):
@@ -72,7 +72,7 @@ assert images[0].tobytes()!=images[1].tobytes(),'ON and OFF must be visually dis
 assert images[1].tobytes()!=images[2].tobytes(),'Both cover modes must be visually distinct'
 assert images[2].tobytes()!=images[3].tobytes(),'The panel must have stereo disparity'
 assert images[2].tobytes()!=images[4].tobytes(),'Save errors must be visible'
-assert images[1].tobytes()!=images[5].tobytes(),'Left-handed trigger/laser/credit labels must change'
+assert images[1].tobytes()!=images[5].tobytes(),'Left-handed default/laser/credit labels must change'
 assert images[2].tobytes()!=images[6].tobytes(),'Left-handed physical/recenter labels must change'
 assert images[6].tobytes()!=images[7].tobytes(),'Left-handed panel must also have stereo disparity'
 assert images[5].tobytes()!=images[8].tobytes(),'Changing hands must invalidate the cached menu texture'

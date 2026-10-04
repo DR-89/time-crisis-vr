@@ -1,6 +1,8 @@
 # Time Crisis VR for Meta Quest 3 and Windows
 
-An experimental VR port of **Time Crisis** for **Meta Quest 3** and **Windows PCVR**, with a tracked 3D pistol, stereo rendering, original arcade gameplay and sound, and a choice of physical ducking or trigger-controlled cover. The Windows build also includes a mouse-controlled monitor mode.
+**Private working build: 0.8.1-gun-test.1.** The controls below describe this local test build, which has not been published. Public v0.8.1 downloads retain the previous weapon and trigger-cover controls.
+
+An experimental VR port of **Time Crisis** for **Meta Quest 3** and **Windows PCVR**, with a tracked 3D pistol, stereo rendering, original arcade gameplay and sound, and a choice of physical ducking or grip-controlled cover. The Windows build also includes a mouse-controlled monitor mode.
 
 **Built on [spacestate1/namco22-decompile](https://github.com/spacestate1/namco22-decompile).** This project adds the Android/OpenXR host, Quest renderer, VR aiming, player weapon and controls to that reconstruction. The original arcade logic and shared engine come from upstream; this is not an independent recreation of the game.
 
@@ -14,7 +16,14 @@ An experimental VR port of **Time Crisis** for **Meta Quest 3** and **Windows PC
 
 **v0.8.1 — experimental, Quest ARM64 and Windows x64.** Gameplay, the player weapon, saved laser settings, menu controls and physical ducking have been tested on Quest 3. Windows desktop rendering and recorded-gameplay replay have been checked. A Quest 3 connected through Virtual Desktop displayed stereo PCVR at 90 Hz on an RTX 3050 Laptop GPU; the tester confirmed VR and controls worked. A complete playthrough and every boss/edge-case hit have not been verified.
 
-Changes in v0.8.1:
+Private test changes (not released):
+
+- New CC0 arcade pistol with a moving slide and trigger; recoil does not alter the aim ray.
+- Either grip holds the virtual pedal. Both triggers select their controller and fire.
+- Saved default hand keeps face-button roles stable during play. Physical ducking remains available.
+- The privately tested sRGB colour correction is retained.
+
+Changes in released v0.8.1:
 
 - Saved left-handed mode for Quest and PCVR: open options with the **left menu button**, then **click the right thumbstick** to change **WEAPON HAND**.
 - The selected hand aims, fires and receives recoil vibration; the other trigger controls cover. Credits, laser, recenter and cover-mode buttons swap with the hand roles. Menu labels show the active layout.
@@ -72,24 +81,26 @@ The importer verifies every required chip by SHA-256 and accepts checksum-matchi
 
 ## Controls
 
-| Action | Right-handed (default) | Left-handed |
+| Action | Default hand: right | Default hand: left |
 | --- | --- | --- |
-| Aim the visible 3D pistol | Right controller | Left controller |
-| Fire / start / confirm | Right trigger | Left trigger |
+| Aim the visible 3D pistol | Controller selected by its trigger | Controller selected by its trigger |
+| Select weapon hand and fire / start / confirm | Either trigger | Either trigger |
 | Insert three credits | A right | X left |
 | Toggle laser silently, with no popup | B right | Y left |
 | Pause and open options / resume | Left menu button | Left menu button |
-| Switch weapon hand, **in options** | Right thumbstick click | Right thumbstick click |
+| Set default hand, **in options** | Right thumbstick click | Right thumbstick click |
 | Switch cover mode, **in options** | Y left | B right |
 | Recenter and set upright head height | X left | A right |
-| Trigger cover: hold to leave cover; release to hide/reload | Left trigger | Right trigger |
+| Grip cover: hold to leave cover; release both to hide/reload | Either grip button | Either grip button |
 | Physical cover: hide/reload; leave cover | Duck; return upright | Duck; return upright |
 
-**Weapon hand:** open options and click the **right thumbstick** to switch between **LEFT** and **RIGHT**. The setting is saved alongside laser and cover preferences. Existing installations remain right-handed until changed. Hand switching only works while options are open; the left menu button always resumes play.
+**Weapon hand:** a fresh left trigger press moves the pistol to the left controller and fires; a fresh right trigger press does the same on the right. Aim and recoil vibration follow that controller. Holding both triggers does not repeatedly switch hands. After focus or tracking loss, release a trigger before firing again.
+
+**Default hand and buttons:** open options and click the **right thumbstick** to change **DEFAULT HAND**. This saved preference determines the starting hand and the face-button layout in the table. Automatic trigger handoffs leave that layout unchanged. The left menu button always resumes play.
 
 **Laser:** on by default, saved between sessions. A previous explicit off setting is retained. Turning it off hides only the beam; aiming and shooting still work.
 
-**Cover mode:** the non-weapon trigger by default. Open the left menu and press **Y** (right-handed) or **B** (left-handed) to switch between **PHYSICAL DUCKING** and trigger cover. Cover mode can only change in options. The in-game menu and all documentation use English.
+**Cover mode:** either grip button by default. Hold at least one to leave cover; release both to hide and reload. Open the left menu and press **Y** (right default hand) or **B** (left default hand) to switch between **PHYSICAL DUCKING** and **GRIP BUTTONS**. Cover mode can only change in options. The in-game menu and all documentation use English.
 
 ### Physical ducking
 
@@ -101,7 +112,7 @@ Choose physical ducking in the menu while upright. Press **X** (right-handed) or
 - The recenter button recalibrates for a different standing/seated position. Height is recalibrated each app session; the selected mode is saved.
 - Missing head tracking releases the virtual pedal. Cover input does not depend on the weapon controller being visible.
 
-![Options menu with left-handed play and physical ducking selected](docs/images/options-english.png)
+![Private test options with left default hand and grip cover](docs/images/options-english.png)
 
 *Rendered from the actual menu code in the desktop GLES test fixture.*
 
@@ -200,4 +211,4 @@ Tests that render through ANGLE currently use the ANGLE DLLs installed with VS C
 
 The foundation is **[spacestate1/namco22-decompile](https://github.com/spacestate1/namco22-decompile)**, whose engine, translated game code, tooling and hardware reconstruction make this port possible. Please visit that repository for the original project and its other games.
 
-Additional components: [SDL](https://github.com/libsdl-org/SDL), [Khronos OpenXR](https://github.com/KhronosGroup/OpenXR-SDK), and a custom player pistol generated with Tripo3D. Attribution, original copyright notices and the distinction between port code and original game content are documented in [NOTICE.md](NOTICE.md).
+Additional components: [SDL](https://github.com/libsdl-org/SDL), [Khronos OpenXR](https://github.com/KhronosGroup/OpenXR-SDK), and [FireWarden's CC0 Lowpoly Pistol](https://opengameart.org/content/lowpoly-pistol) with an animated slide. Attribution, original copyright notices and the distinction between port code and original game content are documented in [NOTICE.md](NOTICE.md).

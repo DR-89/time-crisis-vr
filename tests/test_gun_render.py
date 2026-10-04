@@ -1,7 +1,7 @@
 """Render the real gun with its production GLES code on ANGLE, including stereo."""
 from pathlib import Path
 import ctypes as C, os, re, shutil, subprocess
-from PIL import Image
+from PIL import Image, ImageChops
 ROOT=Path(__file__).resolve().parents[1];out=ROOT/'build/gun-test';out.mkdir(parents=True,exist_ok=True)
 vswhere=Path(os.environ['ProgramFiles(x86)'])/'Microsoft Visual Studio/Installer/vswhere.exe'
 vs=Path(subprocess.check_output([str(vswhere),'-latest','-products','*','-requires','Microsoft.VisualStudio.Component.VC.Tools.x86.x64','-property','installationPath'],text=True).strip())
@@ -24,7 +24,7 @@ attributes=(I*15)(0x3033,1,0x3040,0x40,0x3024,8,0x3023,8,0x3022,8,0x3021,8,0x302
 config=P();count=I();assert bind(egl,'eglChooseConfig',U,P,P,P,I,P)(display,attributes,C.byref(config),1,C.byref(count)) and count.value
 current=bind(egl,'eglMakeCurrent',U,P,P,P,P);render=bind(lib,'gun_fixture',I,C.c_char_p,I,I,I,P)
 images=[];w=h=640
-for variant in range(5):
+for variant in range(8):
     surface=bind(egl,'eglCreatePbufferSurface',P,P,P,P)(display,config,(I*5)(0x3057,w,0x3056,h,0x3038))
     context=bind(egl,'eglCreateContext',P,P,P,P,P)(display,config,None,(I*3)(0x3098,3,0x3038));assert surface and context and current(display,surface,surface,context)
     pixels=(C.c_ubyte*(w*h*4))();status=render(str(ROOT/'quest/assets/models/player-gun.tcgun').encode(),variant,w,h,pixels);assert status==1,(variant,status)
@@ -34,5 +34,12 @@ for variant in range(5):
     current(display,None,None,None);bind(egl,'eglDestroyContext',U,P,P)(display,context);bind(egl,'eglDestroySurface',U,P,P)(display,surface)
 assert images[1].tobytes()!=images[2].tobytes(),'Missing stereo disparity'
 assert images[2].tobytes()!=images[3].tobytes(),'Missing recoil/pose motion'
+assert images[0].tobytes()!=images[5].tobytes(),'Slide must move in side view'
+assert images[0].tobytes()==images[6].tobytes(),'Slide must return exactly to rest after 150 ms'
+assert images[0].tobytes()!=images[7].tobytes(),'Trigger must move independently'
+# Grip/body below the slide must remain stationary during recoil.
+body=(0,370,w,h)
+assert ImageChops.difference(images[0].crop(body),images[5].crop(body)).getbbox() is None,'Whole gun moved instead of its slide'
+assert sum(p!=images[0].getpixel((0,0)) for p in images[0].crop(body).get_flattened_data())>1000,'Body comparison must contain gun pixels'
 bind(egl,'eglTerminate',U,P)(display)
-print('PASS: textured gun visible in all five views, stereo disparity and recoil; no GLES errors.')
+print('PASS: arcade gun visible in eight views, stereo, separate slide/trigger motion, stationary grip, 150 ms return and stable muzzle; no GLES errors.')

@@ -24,7 +24,7 @@ for line in cat.splitlines():
 rates=rates[-60:]
 fps=[int(n) for n,_ in rates]
 report={'apk_sha256':local_hash,'installed_apk_matches':True,'model':shell('getprop','ro.product.model'),'pid':pid,'openxr_initialized':'[XR] Quest initialized:' in log,'openxr_reached_focused':'[XR] session state 5' in log,'last_game_frame':int(frames[-1]) if frames else 0,'errors':errors,'fps_samples':fps,'full_playthrough_verified':False,'stereo_comfort_verified':False}
-report['gun_model_loaded']='[GUN] Tripo model loaded:' in log
+report['gun_model_loaded']=any(marker in log for marker in ('[GUN] Tripo model loaded:','[GUN] Arcade pistol model loaded:'))
 report['refresh_rate_samples']=[int(hz) for _,hz in rates]
 if args.capture:
     shell('run-as','org.timecrisis.quest','touch','files/capture.request')
