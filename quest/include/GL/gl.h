@@ -1,0 +1,78 @@
+/* Minimal fixed-function adapter for the engine's actual GL calls, backed by GLES 3. */
+#pragma once
+#include <GLES3/gl3.h>
+#define APIENTRY GL_APIENTRY
+#define GL_VERSION_1_3 1
+#define GL_QUADS 0x0007
+#define GL_ALPHA_TEST 0x0BC0
+#define GL_MODELVIEW 0x1700
+#define GL_PROJECTION 0x1701
+#define GL_TEXTURE_ENV 0x2300
+#define GL_TEXTURE_ENV_MODE 0x2200
+#define GL_TEXTURE_ENV_COLOR 0x2201
+#define GL_MODULATE 0x2100
+#define GL_REPLACE 0x1E01
+#define GL_COMBINE 0x8570
+#define GL_COMBINE_RGB 0x8571
+#define GL_COMBINE_ALPHA 0x8572
+#define GL_RGB_SCALE 0x8573
+#define GL_INTERPOLATE 0x8575
+#define GL_CONSTANT 0x8576
+#define GL_PRIMARY_COLOR 0x8577
+#define GL_PREVIOUS 0x8578
+#define GL_SOURCE0_RGB 0x8580
+#define GL_SOURCE1_RGB 0x8581
+#define GL_SOURCE2_RGB 0x8582
+#define GL_SOURCE0_ALPHA 0x8588
+#define GL_SOURCE1_ALPHA 0x8589
+#define GL_OPERAND0_RGB 0x8590
+#define GL_OPERAND1_RGB 0x8591
+#define GL_OPERAND2_RGB 0x8592
+#define GL_VERTEX_ARRAY 0x8074
+#define GL_COLOR_ARRAY 0x8076
+#define GL_TEXTURE_COORD_ARRAY 0x8078
+void qglEnable(GLenum);void qglDisable(GLenum);void qglActiveTexture(GLenum);
+void qglAlphaFunc(GLenum,float);void qglBegin(GLenum);void qglEnd(void);
+void qglColor4f(float,float,float,float);void qglTexCoord2f(float,float);void qglTexCoord4f(float,float,float,float);void qglVertex2f(float,float);
+void qglEnableClientState(GLenum);void qglDisableClientState(GLenum);
+void qglVertexPointer(GLint,GLenum,GLsizei,const void*);void qglColorPointer(GLint,GLenum,GLsizei,const void*);void qglTexCoordPointer(GLint,GLenum,GLsizei,const void*);
+void qglDrawArrays(GLenum,GLint,GLsizei);
+void qglBindTexture(GLenum,GLuint);void qglBlendFunc(GLenum,GLenum);void qglColorMask(GLboolean,GLboolean,GLboolean,GLboolean);void qglClear(GLbitfield);
+void qglTexImage2D(GLenum,GLint,GLint,GLsizei,GLsizei,GLint,GLenum,GLenum,const void*);
+void qglTexSubImage2D(GLenum,GLint,GLint,GLint,GLsizei,GLsizei,GLenum,GLenum,const void*);
+void qglTexParameteri(GLenum,GLenum,GLint);void qglDeleteTextures(GLsizei,const GLuint*);
+void qglTexEnvi(GLenum,GLenum,GLint);void qglTexEnvf(GLenum,GLenum,GLfloat);void qglTexEnvfv(GLenum,GLenum,const GLfloat*);
+void qglMatrixMode(GLenum);void qglLoadIdentity(void);void qglOrtho(double,double,double,double,double,double);void qglScissor(GLint,GLint,GLsizei,GLsizei);
+#ifndef QGL_IMPLEMENTATION
+#define glEnable qglEnable
+#define glDisable qglDisable
+#define glActiveTexture qglActiveTexture
+#define glAlphaFunc qglAlphaFunc
+#define glBegin qglBegin
+#define glEnd qglEnd
+#define glColor4f qglColor4f
+#define glTexCoord2f qglTexCoord2f
+#define glTexCoord4f qglTexCoord4f
+#define glVertex2f qglVertex2f
+#define glEnableClientState qglEnableClientState
+#define glDisableClientState qglDisableClientState
+#define glVertexPointer qglVertexPointer
+#define glColorPointer qglColorPointer
+#define glTexCoordPointer qglTexCoordPointer
+#define glDrawArrays qglDrawArrays
+#define glBindTexture qglBindTexture
+#define glBlendFunc qglBlendFunc
+#define glColorMask qglColorMask
+#define glClear qglClear
+#define glTexImage2D qglTexImage2D
+#define glTexSubImage2D qglTexSubImage2D
+#define glTexParameteri qglTexParameteri
+#define glDeleteTextures qglDeleteTextures
+#define glTexEnvi qglTexEnvi
+#define glTexEnvf qglTexEnvf
+#define glTexEnvfv qglTexEnvfv
+#define glMatrixMode qglMatrixMode
+#define glLoadIdentity qglLoadIdentity
+#define glOrtho qglOrtho
+#define glScissor qglScissor
+#endif

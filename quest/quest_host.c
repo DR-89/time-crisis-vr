@@ -1,0 +1,430 @@
+/* Quest host for the existing SS22 scheduler. All OpenXR/GL work stays on SDL's main thread. */
+#include <jni.h>
+#include <EGL/egl.h>
+#include <GLES3/gl3.h>
+#include <openxr/openxr.h>
+#include <openxr/openxr_platform.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_system.h>
+#include <android/log.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <time.h>
+#include "ss22_host.h"
+#include "ss22_game.h"
+#include "ss22_gl.h"
+#include "ss22_out.h"
+#include "audio_out.h"
+#include "quest_gl.h"
+#include "quest_scene.h"
+#include "quest_gun.h"
+#include "quest_options.h"
+#include "quest_cover.h"
+#include "quest_ui.h"
+
+static SDL_Window *window;
+static SDL_GLContext context;
+static XrInstance instance;
+static XrSession session;
+static XrSpace local_space,aim_space;
+static XrActionSet action_set;
+static XrAction aim_action,trigger_action,pedal_action,coin_action,recenter_action,pause_action,haptic_action,laser_action,cover_action;
+static XrSessionState state;
+static bool running,quit,active,focused,paused,origin_set,recenter_requested;
+static bool multiview;
+static bool coin_was,recenter_was,pause_was;
+static bool laser_was,laser_synced,cover_was,cover_synced,options_saved=true;
+static QOptions options;
+static QCover cover;
+static bool cover_calibration_pending=true;
+static const char *options_path="quest-options.cfg";
+static XrTime game_deadline;
+static PFN_xrPerfSettingsSetPerformanceLevelEXT set_performance;
+static PFN_xrSetAndroidApplicationThreadKHR set_thread;
+static PFN_xrEnumerateDisplayRefreshRatesFB enumerate_rates;
+static PFN_xrRequestDisplayRefreshRateFB request_rate;
+static PFN_xrGetDisplayRefreshRateFB get_rate;
+static float preferred_rate;
+static XrView views[2];
+static V3 origin,gun_origin,gun_hit,gun_position;
+static Q4 origin_rotation={0,0,0,1},gun_rotation={0,0,0,1};
+static float nx=.5f,ny=.5f,trigger,pedal;
+static bool aim_valid,gun_tracked;
+static uint64_t recoil_started;
+static int coin_frames;
+static const ss22_host_game *host;
+static struct Eye { XrSwapchain chain;uint32_t w,h,n;XrSwapchainImageOpenGLESKHR *images;GLuint *fb,depth; } eyes[2];
+static double profile_parts[6],profile_thread;
+static double cpu_ms(void){struct timespec t;clock_gettime(CLOCK_THREAD_CPUTIME_ID,&t);return t.tv_sec*1000.0+t.tv_nsec/1e6;}
+static double wall_ms(void){return SDL_GetPerformanceCounter()*1000.0/SDL_GetPerformanceFrequency();}
+
+static bool xr_ok(XrResult result,const char *operation) {
+    if(XR_SUCCEEDED(result))return true;
+    char error[XR_MAX_RESULT_STRING_SIZE];snprintf(error,sizeof error,"%d",result);
+    if(instance)xrResultToString(instance,result,error);
+    fprintf(stderr,"[XR] %s: %s\n",operation,error);
+    __android_log_print(ANDROID_LOG_ERROR,"TCVR","%s: %s",operation,error);return false;
+}
+#define XR(call) xr_ok((call),#call)
+#define REQUIRE(call) do { if(!XR(call))goto fail; } while(0)
+static void performance_start(void){
+    if(set_thread){
+        XR(set_thread(session,XR_ANDROID_THREAD_TYPE_APPLICATION_MAIN_KHR,(uint32_t)gettid()));
+        XR(set_thread(session,XR_ANDROID_THREAD_TYPE_RENDERER_MAIN_KHR,(uint32_t)gettid()));
+    }
+    if(set_performance){
+        XR(set_performance(session,XR_PERF_SETTINGS_DOMAIN_CPU_EXT,XR_PERF_SETTINGS_LEVEL_SUSTAINED_HIGH_EXT));
+        XR(set_performance(session,XR_PERF_SETTINGS_DOMAIN_GPU_EXT,XR_PERF_SETTINGS_LEVEL_SUSTAINED_HIGH_EXT));
+    }
+    if(request_rate&&preferred_rate>0)XR(request_rate(session,preferred_rate));
+    float actual=0;if(get_rate&&XR(get_rate(session,&actual)))fprintf(stderr,"[XR] display requested %.0f Hz, current %.0f Hz\n",preferred_rate,actual);
+}
+static void frame_profile(uint64_t start,XrDuration period,bool visible){
+    static double sum,maximum;static unsigned count,over;
+    if(!visible){sum=maximum=0;count=over=0;return;}
+    double ms=(SDL_GetPerformanceCounter()-start)*1000.0/SDL_GetPerformanceFrequency();
+    sum+=ms;if(ms>maximum)maximum=ms;if(ms>period/1e6)over++;
+    if(++count==240){
+        fprintf(stderr,"[XRPERF] render wall mean %.2f ms max %.2f ms over-budget %u/%u period %.2f ms\n",sum/count,maximum,over,count,period/1e6);
+        fprintf(stderr,"[XRSTAGE] input %.2f acquire %.2f world %.2f overlays %.2f release %.2f end %.2f thread %.2f ms\n",profile_parts[0]/count,profile_parts[1]/count,profile_parts[2]/count,profile_parts[3]/count,profile_parts[4]/count,profile_parts[5]/count,profile_thread/count);
+        memset(profile_parts,0,sizeof profile_parts);profile_thread=0;
+        sum=maximum=0;count=over=0;
+    }
+}
+static XrPath path(const char *s){XrPath p=0;xrStringToPath(instance,s,&p);return p;}
+static bool action(XrAction *out,const char *name,const char *label,XrActionType type){
+    XrActionCreateInfo ci={XR_TYPE_ACTION_CREATE_INFO};ci.actionType=type;
+    snprintf(ci.actionName,sizeof ci.actionName,"%s",name);snprintf(ci.localizedActionName,sizeof ci.localizedActionName,"%s",label);
+    return XR(xrCreateAction(action_set,&ci,out));
+}
+static bool actions_init(void){
+    XrActionSetCreateInfo ci={XR_TYPE_ACTION_SET_CREATE_INFO};strcpy(ci.actionSetName,"time_crisis");strcpy(ci.localizedActionSetName,"Time Crisis");
+    if(!XR(xrCreateActionSet(instance,&ci,&action_set)))return false;
+    if(!action(&aim_action,"aim","Gun aim",XR_ACTION_TYPE_POSE_INPUT)||
+       !action(&trigger_action,"fire","Fire",XR_ACTION_TYPE_FLOAT_INPUT)||
+       !action(&pedal_action,"pedal","Hold to leave cover",XR_ACTION_TYPE_FLOAT_INPUT)||
+       !action(&coin_action,"credit","Insert three coins",XR_ACTION_TYPE_BOOLEAN_INPUT)||
+       !action(&recenter_action,"recenter","Recenter",XR_ACTION_TYPE_BOOLEAN_INPUT)||
+       !action(&pause_action,"pause","Pause",XR_ACTION_TYPE_BOOLEAN_INPUT)||
+       !action(&laser_action,"laser","Toggle laser aim assistance",XR_ACTION_TYPE_BOOLEAN_INPUT)||
+       !action(&cover_action,"cover_mode","Change cover control in options",XR_ACTION_TYPE_BOOLEAN_INPUT)||
+       !action(&haptic_action,"recoil","Gun recoil",XR_ACTION_TYPE_VIBRATION_OUTPUT))return false;
+    XrActionSuggestedBinding bindings[]={
+        {aim_action,path("/user/hand/right/input/aim/pose")},
+        {trigger_action,path("/user/hand/right/input/trigger/value")},
+        {pedal_action,path("/user/hand/left/input/trigger/value")},
+        {coin_action,path("/user/hand/right/input/a/click")},
+        {recenter_action,path("/user/hand/left/input/x/click")},
+        {pause_action,path("/user/hand/left/input/menu/click")},
+        {laser_action,path("/user/hand/right/input/b/click")},
+        {cover_action,path("/user/hand/left/input/y/click")},
+        {haptic_action,path("/user/hand/right/output/haptic")}};
+    XrInteractionProfileSuggestedBinding suggest={XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+    suggest.interactionProfile=path("/interaction_profiles/oculus/touch_controller");suggest.countSuggestedBindings=sizeof(bindings)/sizeof(bindings[0]);suggest.suggestedBindings=bindings;
+    if(!XR(xrSuggestInteractionProfileBindings(instance,&suggest)))return false;
+    XrSessionActionSetsAttachInfo attach={XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO};attach.countActionSets=1;attach.actionSets=&action_set;
+    if(!XR(xrAttachSessionActionSets(session,&attach)))return false;
+    XrActionSpaceCreateInfo space={XR_TYPE_ACTION_SPACE_CREATE_INFO};space.action=aim_action;space.poseInActionSpace.orientation.w=1;
+    return XR(xrCreateActionSpace(session,&space,&aim_space));
+}
+static bool button(XrAction a){XrActionStateGetInfo info={XR_TYPE_ACTION_STATE_GET_INFO};info.action=a;XrActionStateBoolean s={XR_TYPE_ACTION_STATE_BOOLEAN};return XR_SUCCEEDED(xrGetActionStateBoolean(session,&info,&s))&&s.isActive&&s.currentState;}
+/* Fresh edges only: a held button across focus/tracking loss cannot change a setting. */
+static bool pressed(XrAction a,bool *synced,bool *was){
+    XrActionStateGetInfo info={XR_TYPE_ACTION_STATE_GET_INFO};info.action=a;
+    XrActionStateBoolean s={XR_TYPE_ACTION_STATE_BOOLEAN};
+    if(XR_FAILED(xrGetActionStateBoolean(session,&info,&s))||!s.isActive){*synced=false;return false;}
+    bool edge=*synced&&s.currentState&&!*was;*was=s.currentState;*synced=true;return edge;
+}
+static float axis(XrAction a){XrActionStateGetInfo info={XR_TYPE_ACTION_STATE_GET_INFO};info.action=a;XrActionStateFloat s={XR_TYPE_ACTION_STATE_FLOAT};return XR_SUCCEEDED(xrGetActionStateFloat(session,&info,&s))&&s.isActive?s.currentState:0;}
+static V3 vec(XrVector3f v){return v3(v.x,v.y,v.z);}
+static Q4 quat(XrQuaternionf q){return (Q4){q.x,q.y,q.z,q.w};}
+static V3 relative_position(XrVector3f p){return rotate(conjugate(origin_rotation),sub(vec(p),origin));}
+static Q4 relative_rotation(XrQuaternionf q){return product(conjugate(origin_rotation),quat(q));}
+
+static void capture_eye(int eye,int w,int h){
+    if(access("capture.request",F_OK))return;
+    unsigned char *pixels=malloc((size_t)w*h*4);if(!pixels)return;
+    glPixelStorei(GL_PACK_ALIGNMENT,1);glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
+    char name[32];snprintf(name,sizeof name,"eye-%d.ppm",eye);FILE *f=fopen(name,"wb");
+    if(f){fprintf(f,"P6\n%d %d\n255\n",w,h);for(int y=h-1;y>=0;y--)for(int x=0;x<w;x++)fwrite(pixels+((size_t)y*w+x)*4,1,3,f);fclose(f);fprintf(stderr,"[XR] captured %s\n",name);}
+    free(pixels);if(eye==1)unlink("capture.request");
+}
+
+static bool events(void){
+    SDL_Event s;while(SDL_PollEvent(&s)){if(s.type==SDL_QUIT)quit=true;}
+    XrEventDataBuffer e={XR_TYPE_EVENT_DATA_BUFFER};XrResult result;
+    while((result=xrPollEvent(instance,&e))==XR_SUCCESS){
+        if(e.type==XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED){
+            XrEventDataSessionStateChanged *change=(void*)&e;state=change->state;
+            fprintf(stderr,"[XR] session state %d\n",state);
+            if(state==XR_SESSION_STATE_READY){XrSessionBeginInfo b={XR_TYPE_SESSION_BEGIN_INFO};b.primaryViewConfigurationType=XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;if(!XR(xrBeginSession(session,&b)))return false;running=true;game_deadline=0;performance_start();}
+            if(state==XR_SESSION_STATE_STOPPING){if(running)xrEndSession(session);running=false;game_deadline=0;}
+            if(state==XR_SESSION_STATE_EXITING||state==XR_SESSION_STATE_LOSS_PENDING)quit=true;
+            bool focus=state==XR_SESSION_STATE_FOCUSED;
+            if(focused!=focus){focused=focus;laser_synced=cover_synced=false;game_deadline=0;ss22_input_neutral();eng_audio_set_volume(focus&&!paused?100:0);}
+        }else if(e.type==XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING)quit=true;
+        else if(e.type==XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING){recenter_requested=true;}
+        else if(e.type==XR_TYPE_EVENT_DATA_DISPLAY_REFRESH_RATE_CHANGED_FB){
+            XrEventDataDisplayRefreshRateChangedFB *rate=(void*)&e;game_deadline=0;
+            fprintf(stderr,"[XR] display changed %.0f -> %.0f Hz\n",rate->fromDisplayRefreshRate,rate->toDisplayRefreshRate);
+        }
+        else if(e.type==XR_TYPE_EVENT_DATA_PERF_SETTINGS_EXT){
+            XrEventDataPerfSettingsEXT *perf=(void*)&e;
+            fprintf(stderr,"[XR] performance domain %d subdomain %d level %d\n",perf->domain,perf->subDomain,perf->toLevel);
+        }
+        e=(XrEventDataBuffer){XR_TYPE_EVENT_DATA_BUFFER};
+    }
+    return !quit&&(result==XR_EVENT_UNAVAILABLE||XR(result));
+}
+static void sync_input(XrTime time,bool head_tracked,float head_y){
+    trigger=pedal=0;aim_valid=gun_tracked=false;
+    if(!focused)return;
+    XrActiveActionSet aset={action_set,XR_NULL_PATH};XrActionsSyncInfo sync={XR_TYPE_ACTIONS_SYNC_INFO};sync.countActiveActionSets=1;sync.activeActionSets=&aset;
+    if(!XR(xrSyncActions(session,&sync))){laser_synced=cover_synced=false;return;}
+    bool coin=button(coin_action),recenter=button(recenter_action),pause=button(pause_action);
+    if(coin&&!coin_was)coin_frames=36;
+    if(recenter&&!recenter_was)recenter_requested=true;
+    if(pause&&!pause_was){paused=!paused;game_deadline=0;eng_audio_set_volume(paused?0:100);ss22_input_neutral();}
+    coin_was=coin;recenter_was=recenter;pause_was=pause;
+    if(pressed(laser_action,&laser_synced,&laser_was)){
+        options.laser_enabled=!options.laser_enabled;options_saved=qoptions_save(options_path,&options);
+        /* B changes only the saved setting. Only the menu key opens UI. */
+        fprintf(stderr,"[OPTIONS] laser %s; saved %d\n",options.laser_enabled?"ON":"OFF",options_saved);
+    }
+    bool change_cover=pressed(cover_action,&cover_synced,&cover_was);
+    if(paused&&change_cover){
+        options.physical_crouch=!options.physical_crouch;options_saved=qoptions_save(options_path,&options);
+        if(options.physical_crouch)cover_calibration_pending=true;
+        fprintf(stderr,"[OPTIONS] cover %s; saved %d\n",options.physical_crouch?"PHYSICAL":"TRIGGER",options_saved);
+    }
+    if(!origin_set)return;
+    if(cover_calibration_pending&&head_tracked){
+        qcover_calibrate(&cover,head_y);cover_calibration_pending=false;
+        fprintf(stderr,"[COVER] upright height %.3f m\n",head_y);
+    }
+    /* Decking must work even when the right controller is out of view. */
+    bool exposed=qcover_pedal(&cover,head_y,head_tracked);
+    if(!paused)pedal=options.physical_crouch?(!cover_calibration_pending&&exposed?1.f:0.f):axis(pedal_action);
+    XrActionStateGetInfo get={XR_TYPE_ACTION_STATE_GET_INFO};get.action=aim_action;
+    XrActionStatePose pose={XR_TYPE_ACTION_STATE_POSE};
+    if(XR_FAILED(xrGetActionStatePose(session,&get,&pose))||!pose.isActive)return;
+    XrSpaceLocation loc={XR_TYPE_SPACE_LOCATION};
+    XrSpaceLocationFlags required=XR_SPACE_LOCATION_POSITION_VALID_BIT|XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+    if(XR_SUCCEEDED(xrLocateSpace(aim_space,local_space,time,&loc))&&(loc.locationFlags&required)==required){
+        gun_position=relative_position(loc.pose.position);gun_rotation=relative_rotation(loc.pose.orientation);gun_tracked=true;
+        gun_origin=qgun_muzzle(gun_position,gun_rotation);
+        V3 dir=rotate(gun_rotation,v3(0,0,-1));
+        aim_valid=qvr_aim(gun_origin,dir,&nx,&ny,&gun_hit);
+        if(!aim_valid)gun_hit=add(gun_origin,mul(dir,2.5f));
+        if(!paused)trigger=axis(trigger_action);
+    }
+}
+
+bool ss22_host_open(const ss22_host_game *g,int scale,bool full){
+    (void)scale;(void)full;host=g;
+    qoptions_load(options_path,&options);fprintf(stderr,"[OPTIONS] laser %s; cover %s (menu left: options, Y: cover mode)\n",options.laser_enabled?"ON":"OFF",options.physical_crouch?"PHYSICAL":"TRIGGER");
+    if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_EVENTS)!=0)goto fail;
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,3);SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,0);
+    SDL_GL_SetAttribute(SDL_GL_RED_SIZE,8);SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE,8);SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE,8);SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE,8);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,0);SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1);
+    window=SDL_CreateWindow("Time Crisis VR",0,0,1280,720,SDL_WINDOW_OPENGL|SDL_WINDOW_FULLSCREEN);
+    if(!window)goto fail;context=SDL_GL_CreateContext(window);if(!context)goto fail;
+    JNIEnv *env=SDL_AndroidGetJNIEnv();JavaVM *vm=NULL;(*env)->GetJavaVM(env,&vm);jobject activity=SDL_AndroidGetActivity();
+    PFN_xrInitializeLoaderKHR init=NULL;
+    REQUIRE(xrGetInstanceProcAddr(XR_NULL_HANDLE,"xrInitializeLoaderKHR",(PFN_xrVoidFunction*)&init));
+    XrLoaderInitInfoAndroidKHR loader={XR_TYPE_LOADER_INIT_INFO_ANDROID_KHR};loader.applicationVM=vm;loader.applicationContext=activity;
+    REQUIRE(init((XrLoaderInitInfoBaseHeaderKHR*)&loader));
+    const char *extensions[5]={XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME,XR_KHR_OPENGL_ES_ENABLE_EXTENSION_NAME};
+    const char *optional[]={XR_EXT_PERFORMANCE_SETTINGS_EXTENSION_NAME,XR_KHR_ANDROID_THREAD_SETTINGS_EXTENSION_NAME,XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME};
+    bool enabled[3]={false,false,false};uint32_t extension_count=2,available_count=0;
+    REQUIRE(xrEnumerateInstanceExtensionProperties(NULL,0,&available_count,NULL));
+    XrExtensionProperties *available=calloc(available_count,sizeof *available);if(!available)goto fail;
+    for(uint32_t i=0;i<available_count;i++)available[i].type=XR_TYPE_EXTENSION_PROPERTIES;
+    XrResult enumeration=xrEnumerateInstanceExtensionProperties(NULL,available_count,&available_count,available);
+    if(XR_SUCCEEDED(enumeration))for(int k=0;k<3;k++)for(uint32_t j=0;j<available_count;j++)if(!strcmp(optional[k],available[j].extensionName)){
+        extensions[extension_count++]=optional[k];enabled[k]=true;break;
+    }
+    free(available);if(!XR(enumeration))goto fail;
+    XrInstanceCreateInfoAndroidKHR android={XR_TYPE_INSTANCE_CREATE_INFO_ANDROID_KHR};android.applicationVM=vm;android.applicationActivity=activity;
+    XrInstanceCreateInfo ic={XR_TYPE_INSTANCE_CREATE_INFO};ic.next=&android;ic.enabledExtensionCount=extension_count;ic.enabledExtensionNames=extensions;
+    strcpy(ic.applicationInfo.applicationName,"Time Crisis VR");ic.applicationInfo.applicationVersion=1;strcpy(ic.applicationInfo.engineName,"Namco22 Quest");ic.applicationInfo.engineVersion=1;ic.applicationInfo.apiVersion=XR_MAKE_VERSION(1,0,34);
+    REQUIRE(xrCreateInstance(&ic,&instance));(*env)->DeleteLocalRef(env,activity);
+    if(enabled[0])XR(xrGetInstanceProcAddr(instance,"xrPerfSettingsSetPerformanceLevelEXT",(PFN_xrVoidFunction*)&set_performance));
+    if(enabled[1])XR(xrGetInstanceProcAddr(instance,"xrSetAndroidApplicationThreadKHR",(PFN_xrVoidFunction*)&set_thread));
+    if(enabled[2]){
+        XR(xrGetInstanceProcAddr(instance,"xrEnumerateDisplayRefreshRatesFB",(PFN_xrVoidFunction*)&enumerate_rates));
+        XR(xrGetInstanceProcAddr(instance,"xrRequestDisplayRefreshRateFB",(PFN_xrVoidFunction*)&request_rate));
+        XR(xrGetInstanceProcAddr(instance,"xrGetDisplayRefreshRateFB",(PFN_xrVoidFunction*)&get_rate));
+    }
+    XrSystemGetInfo system_info={XR_TYPE_SYSTEM_GET_INFO};system_info.formFactor=XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;XrSystemId system;
+    REQUIRE(xrGetSystem(instance,&system_info,&system));
+    PFN_xrGetOpenGLESGraphicsRequirementsKHR requirements=NULL;
+    REQUIRE(xrGetInstanceProcAddr(instance,"xrGetOpenGLESGraphicsRequirementsKHR",(PFN_xrVoidFunction*)&requirements));
+    XrGraphicsRequirementsOpenGLESKHR req={XR_TYPE_GRAPHICS_REQUIREMENTS_OPENGL_ES_KHR};REQUIRE(requirements(instance,system,&req));
+    EGLDisplay display=eglGetCurrentDisplay();EGLContext egl_context=eglGetCurrentContext();EGLint config_id,count;
+    if(!eglQueryContext(display,egl_context,EGL_CONFIG_ID,&config_id))goto fail;
+    EGLint attributes[]={EGL_CONFIG_ID,config_id,EGL_NONE};EGLConfig config;
+    if(!eglChooseConfig(display,attributes,&config,1,&count)||!count)goto fail;
+    XrGraphicsBindingOpenGLESAndroidKHR binding={XR_TYPE_GRAPHICS_BINDING_OPENGL_ES_ANDROID_KHR};binding.display=display;binding.config=config;binding.context=egl_context;
+    XrSessionCreateInfo sc={XR_TYPE_SESSION_CREATE_INFO};sc.next=&binding;sc.systemId=system;REQUIRE(xrCreateSession(instance,&sc,&session));
+    if(enumerate_rates){
+        uint32_t count=0;
+        if(XR(enumerate_rates(session,0,&count,NULL))&&count){
+            float *rates=calloc(count,sizeof *rates);
+            if(rates&&XR(enumerate_rates(session,count,&count,rates))){
+                /* Multiview and shared sprite images leave more headroom for
+                 * 120 Hz. A private override permits other benchmarks. */
+                float wanted=120;FILE *config=fopen("refresh-rate.txt","r");if(config){if(fscanf(config,"%f",&wanted)!=1)wanted=120;fclose(config);}
+                fprintf(stderr,"[XR] supported refresh rates:");
+                for(uint32_t j=0;j<count;j++){fprintf(stderr," %.0f",rates[j]);if(fabsf(rates[j]-wanted)<.1f)preferred_rate=rates[j];}
+                fprintf(stderr," Hz\n");
+            }
+            free(rates);
+        }
+    }
+    XrReferenceSpaceCreateInfo rc={XR_TYPE_REFERENCE_SPACE_CREATE_INFO};rc.referenceSpaceType=XR_REFERENCE_SPACE_TYPE_LOCAL;rc.poseInReferenceSpace.orientation.w=1;REQUIRE(xrCreateReferenceSpace(session,&rc,&local_space));
+    if(!actions_init())goto fail;
+    uint32_t format_count;REQUIRE(xrEnumerateSwapchainFormats(session,0,&format_count,NULL));int64_t *formats=calloc(format_count,sizeof *formats);if(!formats)goto fail;
+    XrResult fmt_result=xrEnumerateSwapchainFormats(session,format_count,&format_count,formats);bool have_rgba=false;
+    for(uint32_t i=0;i<format_count;i++)if(formats[i]==GL_RGBA8)have_rgba=true;free(formats);if(!XR(fmt_result)||!have_rgba){fprintf(stderr,"[XR] RGBA8 swapchain unavailable\n");goto fail;}
+    uint32_t view_count;REQUIRE(xrEnumerateViewConfigurationViews(instance,system,XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,0,&view_count,NULL));if(view_count!=2)goto fail;
+    XrViewConfigurationView configs[2]={{XR_TYPE_VIEW_CONFIGURATION_VIEW},{XR_TYPE_VIEW_CONFIGURATION_VIEW}};
+    REQUIRE(xrEnumerateViewConfigurationViews(instance,system,XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,2,&view_count,configs));
+    for(int i=0;i<2;i++){
+        struct Eye *eye=&eyes[i];eye->w=configs[i].recommendedImageRectWidth;eye->h=configs[i].recommendedImageRectHeight;
+        float factor=fminf(1,1440.f/fmaxf(eye->w,eye->h));eye->w=(uint32_t)(eye->w*factor);eye->h=(uint32_t)(eye->h*factor);
+        XrSwapchainCreateInfo cc={XR_TYPE_SWAPCHAIN_CREATE_INFO};cc.usageFlags=XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT|XR_SWAPCHAIN_USAGE_SAMPLED_BIT;cc.format=GL_RGBA8;cc.sampleCount=1;cc.width=eye->w;cc.height=eye->h;cc.faceCount=1;cc.arraySize=1;cc.mipCount=1;
+        REQUIRE(xrCreateSwapchain(session,&cc,&eye->chain));REQUIRE(xrEnumerateSwapchainImages(eye->chain,0,&eye->n,NULL));
+        eye->images=calloc(eye->n,sizeof(*eye->images));eye->fb=calloc(eye->n,sizeof(GLuint));if(!eye->images||!eye->fb)goto fail;
+        for(uint32_t j=0;j<eye->n;j++)eye->images[j].type=XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_ES_KHR;
+        REQUIRE(xrEnumerateSwapchainImages(eye->chain,eye->n,&eye->n,(XrSwapchainImageBaseHeader*)eye->images));
+        glGenFramebuffers(eye->n,eye->fb);
+        glGenRenderbuffers(1,&eye->depth);glBindRenderbuffer(GL_RENDERBUFFER,eye->depth);glRenderbufferStorage(GL_RENDERBUFFER,GL_DEPTH_COMPONENT24,eye->w,eye->h);
+        for(uint32_t j=0;j<eye->n;j++){glBindFramebuffer(GL_FRAMEBUFFER,eye->fb[j]);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,eye->images[j].image,0);glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_RENDERBUFFER,eye->depth);if(glCheckFramebufferStatus(GL_FRAMEBUFFER)!=GL_FRAMEBUFFER_COMPLETE)goto fail;}
+        views[i]=(XrView){XR_TYPE_VIEW};
+    }
+    if(!qgl_init())goto fail;
+    multiview=eyes[0].w==eyes[1].w&&eyes[0].h==eyes[1].h&&qgl_stereo_init(SDL_GL_GetProcAddress("glFramebufferTextureMultiviewOVR"));
+    if(!qgun_init("models/player-gun.tcgun"))goto fail;
+    if(!qui_init())goto fail;
+    ss22_gl_set_gun_flash(false);eng_audio_set_gain(g->out_gain);eng_audio_open();g->snd_set_output(true);g->input_init();
+    active=true;fprintf(stderr,"[XR] Quest initialized: %ux%u per eye; %s\n",eyes[0].w,eyes[0].h,glGetString(GL_RENDERER));return true;
+fail:
+    fprintf(stderr,"[XR] initialization failed; SDL: %s EGL: 0x%x\n",SDL_GetError(),eglGetError());ss22_host_close();return false;
+}
+
+bool ss22_host_frame(void){
+    /* The original game runs at 59.906 Hz. Submit additional poses without advancing its CPU at headset refresh. */
+    for(;;){
+        if(!events())return false;
+        if(!running){SDL_Delay(10);continue;}
+        XrFrameWaitInfo wi={XR_TYPE_FRAME_WAIT_INFO};XrFrameState frame={XR_TYPE_FRAME_STATE};if(!XR(xrWaitFrame(session,&wi,&frame)))return false;
+        uint64_t render_start=SDL_GetPerformanceCounter();
+        double cpu_start=cpu_ms(),stage_start=wall_ms(),parts[6]={0};
+        XrFrameBeginInfo bi={XR_TYPE_FRAME_BEGIN_INFO};if(!XR(xrBeginFrame(session,&bi)))return false;
+        XrViewState vs={XR_TYPE_VIEW_STATE};XrViewLocateInfo li={XR_TYPE_VIEW_LOCATE_INFO};li.viewConfigurationType=XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;li.displayTime=frame.predictedDisplayTime;li.space=local_space;uint32_t n=0;
+        bool located=XR(xrLocateViews(session,&li,&vs,2,&n,views));
+        XrViewStateFlags valid=XR_VIEW_STATE_ORIENTATION_VALID_BIT|XR_VIEW_STATE_POSITION_VALID_BIT;
+        bool tracking=located&&n==2&&(vs.viewStateFlags&valid)==valid;
+        if(tracking&&(!origin_set||recenter_requested)){
+            origin=mul(add(vec(views[0].pose.position),vec(views[1].pose.position)),.5f);origin_rotation=yaw_only(quat(views[0].pose.orientation));origin_set=true;recenter_requested=false;
+            cover_calibration_pending=true;
+        }
+        bool head_tracked=tracking&&frame.shouldRender&&(vs.viewStateFlags&XR_VIEW_STATE_POSITION_TRACKED_BIT);
+        sync_input(frame.predictedDisplayTime,head_tracked,(views[0].pose.position.y+views[1].pose.position.y)*.5f);
+        parts[0]+=wall_ms()-stage_start;
+        float recoil=recoil_started?fmaxf(0,1-(float)(SDL_GetTicks64()-recoil_started)/90.f):0;
+        XrCompositionLayerProjectionView pv[2]={{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW},{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}};
+        bool draw_frame=frame.shouldRender&&tracking;
+        bool frame_ok=true;
+        float v[2][16],p[2][16];
+        for(int i=0;i<2;i++){
+            view_matrix(v[i],relative_position(views[i].pose.position),relative_rotation(views[i].pose.orientation));
+            projection(p[i],views[i].fov.angleLeft,views[i].fov.angleRight,views[i].fov.angleDown,views[i].fov.angleUp);
+        }
+        bool stereo_frame=false;
+        if(draw_frame&&multiview){
+            stage_start=wall_ms();stereo_frame=qgl_stereo_begin(v[0],p[0],eyes[0].w,eyes[0].h);
+            if(stereo_frame){ss22_draw(eyes[0].w,eyes[0].h);qgl_stereo_end();}
+            else multiview=false;
+            parts[2]+=wall_ms()-stage_start;
+        }
+        for(int i=0;draw_frame&&i<2;i++){
+            stage_start=wall_ms();
+            struct Eye *eye=&eyes[i];uint32_t index;
+            XrSwapchainImageAcquireInfo acq={XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};if(!XR(xrAcquireSwapchainImage(eye->chain,&acq,&index))){frame_ok=false;break;}
+            XrSwapchainImageWaitInfo wait={XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};wait.timeout=XR_INFINITE_DURATION;
+            if(!XR(xrWaitSwapchainImage(eye->chain,&wait))){frame_ok=false;break;}
+            parts[1]+=wall_ms()-stage_start;stage_start=wall_ms();
+            qgl_target(i,eye->fb[index]);
+            glViewport(0,0,eye->w,eye->h);
+            qgl_eye(v[i],p[i]);
+            if(stereo_frame)qgl_stereo_blit(i);else ss22_draw(eye->w,eye->h);
+            if(options.laser_enabled&&focused&&aim_valid&&!paused)qgl_pointer(gun_origin,gun_hit);
+            qgl_flush();
+            parts[2]+=wall_ms()-stage_start;stage_start=wall_ms();
+            if(focused&&gun_tracked)qgun_draw(v[i],p[i],gun_position,gun_rotation,recoil);
+            if(focused&&paused){
+                V3 head=mul(add(relative_position(views[0].pose.position),relative_position(views[1].pose.position)),.5f);
+                qui_draw(v[i],p[i],head,relative_rotation(views[0].pose.orientation),options.laser_enabled,options.physical_crouch,options_saved);
+            }
+            capture_eye(i,eye->w,eye->h);
+            parts[3]+=wall_ms()-stage_start;stage_start=wall_ms();
+            const GLenum discard[]={GL_DEPTH_ATTACHMENT};glInvalidateFramebuffer(GL_FRAMEBUFFER,1,discard);
+            GLenum error=glGetError();if(error)fprintf(stderr,"[XR] eye %d GL error 0x%x\n",i,error);
+            glFlush();
+            XrSwapchainImageReleaseInfo rel={XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};if(!XR(xrReleaseSwapchainImage(eye->chain,&rel))){frame_ok=false;break;}
+            pv[i].pose=views[i].pose;pv[i].fov=views[i].fov;pv[i].subImage.swapchain=eye->chain;pv[i].subImage.imageRect.extent=(XrExtent2Di){eye->w,eye->h};
+            parts[4]+=wall_ms()-stage_start;
+        }
+        XrCompositionLayerProjection layer={XR_TYPE_COMPOSITION_LAYER_PROJECTION};layer.space=local_space;layer.viewCount=2;layer.views=pv;
+        const XrCompositionLayerBaseHeader *layers[]={(const XrCompositionLayerBaseHeader*)&layer};
+        XrFrameEndInfo end={XR_TYPE_FRAME_END_INFO};end.displayTime=frame.predictedDisplayTime;end.environmentBlendMode=XR_ENVIRONMENT_BLEND_MODE_OPAQUE;end.layerCount=draw_frame&&frame_ok?1:0;end.layers=layers;
+        stage_start=wall_ms();
+        if(!XR(xrEndFrame(session,&end))||!frame_ok)return false;
+        parts[5]+=wall_ms()-stage_start;
+        if(draw_frame&&focused&&!paused){for(int j=0;j<6;j++)profile_parts[j]+=parts[j];profile_thread+=cpu_ms()-cpu_start;}
+        else{memset(profile_parts,0,sizeof profile_parts);profile_thread=0;}
+        frame_profile(render_start,frame.predictedDisplayPeriod,draw_frame&&focused&&!paused);
+        if(!focused||paused||!tracking){ss22_input_neutral();game_deadline=0;continue;}
+        if(!game_deadline||llabs(frame.predictedDisplayTime-game_deadline)>250000000)game_deadline=frame.predictedDisplayTime;
+        if(frame.predictedDisplayTime>=game_deadline){game_deadline+=16692818;host->input_update();return true;}
+    }
+}
+void ss22_input_init(const ss22_input_game *g){(void)g;}
+void ss22_input_update(void){
+    uint16_t bits=0;
+    if(focused&&!paused){if(trigger>.55f)bits|=0x10;if(pedal>.55f)bits|=0x20;if(coin_frames){if((coin_frames%12)>5)bits|=1;--coin_frames;}}
+    g_ss22_gun_off=!aim_valid;g_ss22_gun_x=(uint16_t)(68+fminf(1,fmaxf(0,nx))*626);g_ss22_gun_y=(uint16_t)(43+fminf(1,fmaxf(0,ny))*241);
+    ss22_snd_inputs(bits,0x200,0,0);
+}
+void ss22_input_neutral(void){trigger=pedal=0;ss22_snd_inputs(0,0x200,0,0);}
+const eng_ui_page *ss22_input_page(void){return NULL;}
+void ss22_input_event(const SDL_Event *e){(void)e;}
+void ss22_input_motor(uint8_t b){(void)b;}
+void ss22_input_close(void){}
+bool ss22_input_aim(float *x,float *y){*x=nx;*y=ny;return aim_valid;}
+void ss22_input_rumble(uint16_t lo,uint16_t hi,uint32_t ms){
+    (void)lo;if(!focused||!running)return;XrHapticActionInfo info={XR_TYPE_HAPTIC_ACTION_INFO};info.action=haptic_action;
+    XrHapticVibration vibration={XR_TYPE_HAPTIC_VIBRATION};vibration.duration=(XrDuration)ms*1000000;vibration.frequency=XR_FREQUENCY_UNSPECIFIED;vibration.amplitude=hi/65535.f;
+    xrApplyHapticFeedback(session,&info,(XrHapticBaseHeader*)&vibration);
+}
+void ss22_out_poll(uint16_t outputs){static uint16_t previous;uint16_t rise=outputs&~previous;previous=outputs;if(rise&2){recoil_started=SDL_GetTicks64();ss22_input_rumble(0,48000,45);}}
+void ss22_out_close(void){}
+bool ss22_host_active(void){return active;}
+bool ss22_host_restart_requested(void){return false;}
+bool ss22_host_open_headless(void){return false;}
+bool ss22_host_pointer(float *x,float *y,bool *inside){*x=nx;*y=ny;*inside=aim_valid;return active;}
+void ss22_host_shot(const char *p){(void)p;}
+void ss22_host_close(void){
+    active=false;eng_audio_close();
+    if(context){qui_shutdown();qgun_shutdown();qgl_shutdown();}
+    for(int i=0;i<2;i++){if(context&&eyes[i].fb)glDeleteFramebuffers(eyes[i].n,eyes[i].fb);if(context)glDeleteRenderbuffers(1,&eyes[i].depth);if(eyes[i].chain)xrDestroySwapchain(eyes[i].chain);free(eyes[i].images);free(eyes[i].fb);memset(&eyes[i],0,sizeof eyes[i]);}
+    if(aim_space)xrDestroySpace(aim_space);if(local_space)xrDestroySpace(local_space);
+    if(session)xrDestroySession(session);if(action_set)xrDestroyActionSet(action_set);if(instance)xrDestroyInstance(instance);
+    aim_space=local_space=0;session=0;action_set=0;instance=0;running=false;
+    if(context)SDL_GL_DeleteContext(context);context=NULL;if(window)SDL_DestroyWindow(window);window=NULL;SDL_Quit();
+}

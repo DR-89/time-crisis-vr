@@ -1,0 +1,44 @@
+{
+  "generator": "Tripo3D",
+  "task_id": "aa5e635d-ee25-4fa9-b448-a55b53d09506",
+  "source_sha256": "c659983f2b8eb41aa9ef3b8409457fc517f8a4081fe821cb95a5239b5610a968",
+  "asset_sha256": "1710a20309e5c3ef4d81f4ee83c518d6be142a92bda8bf417438b0c0e99160d3",
+  "triangles": 3994,
+  "vertices": 3678,
+  "albedo_size": [
+    1024,
+    1024
+  ],
+  "source_front": "+z",
+  "source_barrel_y": 0.24,
+  "source_bounds": [
+    [
+      -0.12375631183385849,
+      -0.31392961740493774,
+      -0.49997666478157043
+    ],
+    [
+      0.12383472174406052,
+      0.31395208835601807,
+      0.4999626874923706
+    ]
+  ],
+  "bounds_m": [
+    [
+      -0.028474697843194008,
+      -0.12741154432296753,
+      -0.20000000298023224
+    ],
+    [
+      0.028474697843194008,
+      0.01701001450419426,
+      0.029999999329447746
+    ]
+  ],
+  "muzzle_m": [
+    0.0,
+    0.0,
+    -0.20000000298023224
+  ],
+  "material": "base color with mesh normals and lightweight directional lighting; source PBR maps retained in GLB"
+}

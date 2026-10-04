@@ -1,0 +1,2 @@
+# Observed on Quest during gameplay: the translated driver stopped at this ROM-backed return instruction, M/X=0.
+00DABE 0 1

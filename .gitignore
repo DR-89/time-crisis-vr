@@ -1,0 +1,7 @@
+.tools/
+build/
+artifacts/
+__pycache__/
+*.log
+*.keystore
+quest/assets/roms/
