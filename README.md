@@ -1,6 +1,6 @@
-# Time Crisis VR for Meta Quest 3 and Windows
+# Time Crisis VR for Meta Quest and Windows
 
-An experimental VR port of **Time Crisis** for **Meta Quest 3** and **Windows PCVR**, with a tracked 3D pistol, stereo rendering, original arcade gameplay and sound, and a choice of physical ducking or grip-controlled cover. The Windows build also includes a mouse-controlled monitor mode.
+An experimental VR port of **Time Crisis** for **Meta Quest** and **Windows PCVR**, with a tracked 3D pistol, stereo rendering, original arcade gameplay and sound, and a choice of physical ducking or grip-controlled cover. Tested on Quest 3; the APK also declares Quest 2 and Quest 3S compatibility. The Windows build includes a mouse-controlled monitor mode.
 
 **Built on [spacestate1/namco22-decompile](https://github.com/spacestate1/namco22-decompile).** This project adds the Android/OpenXR host, Quest renderer, VR aiming, player weapon and controls to that reconstruction. The original arcade logic and shared engine come from upstream; this is not an independent recreation of the game.
 
@@ -12,7 +12,14 @@ An experimental VR port of **Time Crisis** for **Meta Quest 3** and **Windows PC
 
 ## Current status
 
-**v0.8.2 — experimental, Quest ARM64 and Windows x64.** This release adds an articulated arcade pistol, grip-button cover, instant trigger-based hand selection and corrected colour output. The new controls pass automated tests and the Quest test build starts with the new model and sRGB output. Human confirmation of the new gun/control combination and a new live PCVR test are still pending.
+**v0.8.3 — experimental, Quest ARM64 and Windows x64.** Flat sprites, HUD and fallback aiming now use the arcade camera's projection, and shot marks sit on hit surfaces. The tester confirmed that the new test build worked on Quest 3. Quest 2 hardware refresh measurements and a new live PCVR check remain pending.
+
+Changes in v0.8.3:
+
+- Fix for off-centre aim/impact mismatch: the old flat layer used a 500 px focal length while the recorded arcade camera uses 772.5625 px, making the flat layer about 1.545 times too wide.
+- Shot-mark sprites now use the nearest hit surface's depth, with an aligned flat-plane fallback. Other HUD sprites remain flat; normal desktop mouse projection is unchanged.
+- Explicit Quest 2 manifest entry. Prefer 120 Hz when supported, otherwise the highest supported lower rate, such as 90 Hz. Confirm the actual rate and retry requests a bounded number of times after focus.
+- Pixel-level projection tests pass, and the recorded Stage 1 session renders through 15,000 frames without CPU traps. See [camera alignment and refresh validation](docs/AIM-PROJECTION.md).
 
 Changes in v0.8.2:
 
@@ -36,16 +43,16 @@ Changes in v0.8.0:
 
 The direct immersive Quest launcher fix from v0.7.3 is retained. Versions v0.7.1 and v0.7.2 could open as a flat panel.
 
-The headset is asked to run at **120 Hz**. This is a target, not a guarantee of perfectly stable 120 FPS. See the measured results below.
+The headset is asked to run at **120 Hz** when the runtime supports it, with a supported lower-rate fallback. This is a target, not a guarantee of perfectly stable 120 FPS. Quest 2's actual rate still needs a device measurement. See the measured results below.
 
 ## Download and install
 
-1. Download **`TimeCrisisVR-v0.8.2-quest3.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases).
+1. Download **`TimeCrisisVR-v0.8.3-quest.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases).
 2. Enable developer mode on the Quest, connect it by USB and allow USB debugging.
 3. Install the APK with SideQuest or Android platform-tools:
 
    ```sh
-   adb install -r TimeCrisisVR-v0.8.2-quest3.apk
+   adb install -r TimeCrisisVR-v0.8.3-quest.apk
    ```
 
 4. Open **Time Crisis VR (Experimental)** from the Quest library's **Unknown sources** section.
@@ -57,7 +64,7 @@ Updates installed with `adb install -r` retain your settings and game data. Unin
 
 ### Windows / PCVR
 
-Extract **`TimeCrisisVR-v0.8.2-windows-x64.zip`** to a writable folder. Connect the
+Extract **`TimeCrisisVR-v0.8.3-windows-x64.zip`** to a writable folder. Connect the
 headset through your PC VR software, select an OpenXR runtime with OpenGL support,
 then open **Play VR.cmd**. **Play SteamVR.cmd** selects an installed SteamVR runtime
 for this launch only. **Play Desktop.cmd** starts mouse/keyboard play on a monitor.
@@ -172,7 +179,7 @@ Output:
 - Bundled: `artifacts/bundled/TimeCrisisVR-with-ROM.apk`
 - ROM-free: `artifacts/TimeCrisisVR-quest3-debug.apk`
 - Build metadata and SHA-256: `build-info.json` beside the corresponding APK.
-- Windows: `artifacts/pc/TimeCrisisVR-v0.8.2-windows-x64.zip` and its `.sha256` file.
+- Windows: `artifacts/pc/TimeCrisisVR-v0.8.3-windows-x64.zip` and its `.sha256` file.
 
 The bootstrap downloads pinned NDK r27c, API 34, Build Tools 35.0.0, SDL 2.30.11, OpenXR loader 1.1.43 and Ninja 1.12.1 into `.tools/`. The first build takes several minutes and multiple GB. It does not install a global Android SDK. CMake and the JDK must already be installed.
 

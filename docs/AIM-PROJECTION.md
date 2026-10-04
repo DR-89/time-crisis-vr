@@ -1,7 +1,7 @@
-# Camera alignment and Quest 2 refresh test
+# Camera alignment and Quest 2 refresh handling
 
-Unreleased test build: `0.8.3-aim-test.1`. This follows v0.8.2; no new release has
-been published for these changes.
+Implemented in v0.8.3. The tester confirmed the corresponding test build worked
+on Quest 3 before publication. Quest 2 refresh-rate measurements remain pending.
 
 ## Flat layers and aim
 
@@ -63,5 +63,7 @@ The arcade simulation remains at approximately 59.906 Hz.
   retries, focus handling and the existing controller interactions.
 - The full 15,000-frame rendered replay completes without CPU traps or reported
   graphics/DSP faults. Accelerated replay is not a real-time performance test.
-- Quest 2 hardware verification and a human comparison of edge-of-screen shots
-  remain pending. The connected development headset is a Quest 3.
+- The tester confirmed the installed aim-test build worked on Quest 3. The
+  release retains the same native code and assets, with updated version metadata.
+- Quest 2 hardware refresh measurements, a new live PCVR comparison and a full
+  playthrough remain pending. No new claim of stable 120 FPS is made.

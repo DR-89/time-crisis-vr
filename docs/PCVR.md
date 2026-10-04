@@ -1,9 +1,9 @@
 # Time Crisis VR for Windows
 
-**Unreleased 0.8.3-aim-test.1:** this test build aligns flat layers and fallback
+**v0.8.3:** this build aligns flat layers and fallback
 aiming with the arcade camera, and places shot marks on hit surfaces. The normal
-monitor projection stays unchanged. See `docs/AIM-PROJECTION.md` in the source
-tree for validation and limitations. The controls below are unchanged from v0.8.2.
+monitor projection stays unchanged. See the [projection validation](https://github.com/DR-89/time-crisis-vr/blob/v0.8.3/docs/AIM-PROJECTION.md)
+for evidence and limitations. The controls below are unchanged from v0.8.2.
 
 **v0.8.2:** cover now uses either grip button. Both triggers select their controller and fire. Physical ducking remains optional.
 
@@ -126,7 +126,13 @@ test of the new layout is still pending.
 The v0.8.2 gun/control changes additionally pass shared-host input tests for
 either-grip cover, trigger handoffs, short taps, fire edges, simultaneous presses
 and tracking/focus loss. GLES rendering tests cover separate slide and trigger
-motion, stereo and a fixed aim origin. Live Quest and PCVR confirmation of these
-changes is still pending. Its sRGB colour correction passed byte-for-byte output
+motion, stereo and a fixed aim origin. The subsequent v0.8.3 aim-test build was
+confirmed working on Quest 3; a new live PCVR check remains pending. The sRGB colour correction passed byte-for-byte output
 checks on the Quest 3 GPU with both stereo render paths; the tester confirmed the
 improved Quest colour appearance. A live PCVR colour comparison remains pending.
+
+For v0.8.3, camera-aligned sprite grids match reconstructed polygons pixel for
+pixel, both multiview eyes match the single-view reference, and the recorded
+Stage 1 session renders through 15,000 frames without CPU traps. Normal desktop
+mouse projection and controls are preserved. These checks do not establish a
+particular headset frame rate or replace the pending live PCVR comparison.

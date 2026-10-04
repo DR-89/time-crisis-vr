@@ -8,7 +8,7 @@ import argparse, hashlib, json, os, re, shutil, subprocess, tempfile, zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
-p.add_argument('--zip',type=Path,default=ROOT/'artifacts/pc/TimeCrisisVR-v0.8.2-windows-x64.zip')
+p.add_argument('--zip',type=Path,default=ROOT/'artifacts/pc/TimeCrisisVR-v0.8.3-windows-x64.zip')
 p.add_argument('--replay',type=Path)
 p.add_argument('--frames',type=int,default=15000)
 a=p.parse_args()
