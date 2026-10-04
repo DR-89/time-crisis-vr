@@ -30,6 +30,23 @@ static void rect(float x,float y,float w,float h){
     qglTexCoord2f(1,1);qglVertex2f(x+w,y+h);
     qglTexCoord2f(0,1);qglVertex2f(x,y+h);qglEnd();
 }
+/* Pixel-level oracle: flat sprites must lie on the reconstructed camera rays. */
+__declspec(dllexport) int projection_fixture(int variant,int w,int h,uint8_t *out){
+    if(!qgl_init())return 0;
+    float view[16],proj[16];view_matrix(view,v3(0,0,0),(Q4){0,0,0,1});projection(proj,-.65f,.65f,-.65f,.65f);
+    qgl_eye(view,proj);qgl_flat_camera(312,236,variant==0?500:772.6f);
+    glViewport(0,0,w,h);glClearColor(0,0,0,1);qglColorMask(1,1,1,1);qglClear(GL_COLOR_BUFFER_BIT);
+    qglActiveTexture(GL_TEXTURE1);qglDisable(GL_TEXTURE_2D);qglActiveTexture(GL_TEXTURE0);qglDisable(GL_TEXTURE_2D);qglDisable(GL_BLEND);qglDisable(GL_ALPHA_TEST);qglColor4f(1,1,1,1);
+    for(int y=77;y<440;y+=113)for(int x=57;x<620;x+=119){
+        if(variant<2)rect((float)x,(float)y,17,19);
+        else{
+            const int offset[4][2]={{0,0},{17,0},{17,19},{0,19}};qglBegin(GL_QUADS);
+            for(int j=0;j<4;j++)qglVertex4f((x+offset[j][0]-312)*30.f/772.6f,(236-y-offset[j][1])*30.f/772.6f,-30,1);
+            qglEnd();
+        }
+    }
+    qgl_flush();glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,out);int result=glGetError()?0:1;qgl_shutdown();return result;
+}
 __declspec(dllexport) int render_fixture(int variant,int w,int h,uint8_t*out){
     post_w=post_h=0;active=0;texture_on[0]=texture_on[1]=0;
     if(!qgl_init())return 0;
@@ -72,11 +89,14 @@ __declspec(dllexport) int render_fixture(int variant,int w,int h,uint8_t*out){
         qglTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,2,2,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
     }
     qglEnable(GL_TEXTURE_2D);qglEnable(GL_ALPHA_TEST);qglAlphaFunc(GL_GREATER,.1f);
+    qgl_flat_camera(318,244,772.6f);
     for(int i=0;i<70;i++){
         qglBindTexture(GL_TEXTURE_2D,tex[i%2]);qglColor4f(.6f+(i%3)*.2f,.8f,1,1);
         rect(40+(i%10)*40,40+(i/10)*40,85,75);
     }
     /* The first texture's queued draws must observe its OLD texels. */
+    /* Camera changes are also barriers: queued sprites retain their camera. */
+    qgl_flat_camera(320,240,500);
     memset(pixels,180,sizeof pixels);qglBindTexture(GL_TEXTURE_2D,tex[0]);
     uint8_t strided[24];memset(strided,99,sizeof strided);memcpy(strided,pixels,8);memcpy(strided+12,pixels+8,8);
     glPixelStorei(GL_UNPACK_ROW_LENGTH,3);

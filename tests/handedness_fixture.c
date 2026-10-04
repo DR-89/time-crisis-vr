@@ -15,6 +15,10 @@ static bool trigger_active[2]={true,true};
 static XrPath last_haptic,last_stop;
 static XrResult sync_result=XR_SUCCESS;
 static uint16_t arcade_bits;
+static float reported_rate=72;
+static unsigned rate_requests;
+static XrResult XRAPI_CALL mock_get_rate(XrSession s,float *rate){(void)s;*rate=reported_rate;return XR_SUCCESS;}
+static XrResult XRAPI_CALL mock_request_rate(XrSession s,float rate){(void)s;assert(rate==120);rate_requests++;return XR_SUCCESS;}
 uint16_t g_ss22_gun_x,g_ss22_gun_y;
 bool g_ss22_gun_off;
 static unsigned id(XrAction a){return (unsigned)(uintptr_t)a;}
@@ -93,6 +97,17 @@ static void bound(XrAction a,const char *name){
     fprintf(stderr,"Missing binding: %s\n",name);abort();
 }
 int main(void){
+    /* A successful request is not proof of application. Retry while focused,
+     * stop on measured success, and cap retries if the runtime refuses to switch. */
+    get_rate=mock_get_rate;request_rate=mock_request_rate;preferred_rate=120;focused=true;
+    display_rate_check(1);assert(!rate_requests);display_rate_check(2000000001LL);assert(rate_requests==1);
+    reported_rate=120;display_rate_check(4000000001LL);assert(rate_attempts==4);
+    display_rate_check(6000000001LL);assert(rate_requests==1);
+    reported_rate=72;rate_attempts=0;rate_check_time=0;rate_requests=0;
+    for(int i=0;i<8;i++)display_rate_check(1+(int64_t)i*2000000000LL);
+    assert(rate_requests==3&&rate_attempts==4);
+    focused=false;rate_attempts=0;rate_check_time=0;display_rate_check(30000000000LL);assert(!rate_check_time);
+    get_rate=NULL;request_rate=NULL;
     options_path="handedness-test.cfg";qoptions_load(options_path,&options);
     assert(!options.left_handed);instance=(XrInstance)(uintptr_t)1;session=(XrSession)(uintptr_t)1;
     running=focused=origin_set=true;assert(actions_init());assert(space_count==2&&binding_count==14);

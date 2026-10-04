@@ -55,6 +55,7 @@ for category in ('org.khronos.openxr.intent.category.IMMERSIVE_HMD','com.oculus.
 assert 'org.timecrisis.quest.setup' in setup,'Setup needs a separate Android task'
 assert ('android.intent.category.LAUNCHER' in main)==bundled
 assert "native-code: 'arm64-v8a'" in badging
+assert 'quest2|quest3|quest3s' in tree,'Quest 2 must not fall back to an older-device compatibility profile'
 readelf=ROOT/'.tools/ndk/android-ndk-r27c/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-readelf.exe'
 symbols=subprocess.check_output([str(readelf),'--dyn-syms',str(ROOT/'build/package-libs/libmain.so')],text=True)
 assert ' SDL_main' in symbols

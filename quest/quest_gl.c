@@ -11,7 +11,8 @@ static GLuint program,vao,vbo,post_program,post_tex,post_copy_fb,lut_tex;
 static GLuint atlas_texture,atlas_ids[28];
 static int atlas_dimension,atlas_pages;
 static bool atlas_unavailable;
-enum { U_VIEW,U_PROJ,U_TEX,U_TEXTURED,U_ALPHA,U_FOG,U_REPLACE,U_SCALE,U_THRESHOLD,U_FOG_COLOR,U_COUNT };
+enum { U_VIEW,U_PROJ,U_TEX,U_TEXTURED,U_ALPHA,U_FOG,U_REPLACE,U_SCALE,U_THRESHOLD,U_FOG_COLOR,U_FLAT_CAMERA,U_COUNT };
+static float flat_camera[4]={320,240,.005f,2.5f};
 static GLint uniforms[U_COUNT],post_screen,post_lut;
 static GLuint mono_program,multi_program,multi_post,multi_texture,multi_fb,multi_lut;
 static GLint mono_uniforms[U_COUNT],multi_uniforms[U_COUNT];
@@ -22,10 +23,10 @@ static uint8_t multi_gamma_table[3][256],multi_uploaded_lut[3][256];
 typedef void (GL_APIENTRY *MultiviewProc)(GLenum,GLenum,GLuint,GLint,GLint,GLsizei);
 static MultiviewProc framebuffer_multiview;
 static const char *world_vertex=
-    "#version 300 es\nprecision highp float;layout(location=0) in vec4 aPos;layout(location=1) in vec4 aColor;layout(location=2) in vec4 aUV;uniform mat4 view[2],proj[2];\n#ifdef QGL_MULTIVIEW\nlayout(num_views=2) in;\n#define EYE gl_ViewID_OVR\n#else\n#define EYE 0\n#endif\nout vec4 c;out vec3 uv;flat out float layer;void main(){vec3 p;if(aPos.w>0.5){p=aPos.xyz;uv=vec3(aUV.xy/max(aUV.w,1e-12),1);}else{p=vec3((aPos.x-320.0)*0.005,(240.0-aPos.y)*0.005,-2.5);uv=vec3(aUV.xy,aUV.w);}gl_Position=proj[EYE]*view[EYE]*vec4(p,1);c=aColor;layer=aUV.z;}";
+    "#version 300 es\nprecision highp float;layout(location=0) in vec4 aPos;layout(location=1) in vec4 aColor;layout(location=2) in vec4 aUV;uniform mat4 view[2],proj[2];uniform vec4 flatCam;\n#ifdef QGL_MULTIVIEW\nlayout(num_views=2) in;\n#define EYE gl_ViewID_OVR\n#else\n#define EYE 0\n#endif\nout vec4 c;out vec3 uv;flat out float layer;void main(){vec3 p;if(aPos.w>0.5){p=aPos.xyz;uv=vec3(aUV.xy/max(aUV.w,1e-12),1);}else{p=vec3((aPos.x-flatCam.x)*flatCam.z,(flatCam.y-aPos.y)*flatCam.z,-flatCam.w);uv=vec3(aUV.xy,aUV.w);}gl_Position=proj[EYE]*view[EYE]*vec4(p,1);c=aColor;layer=aUV.z;}";
 static const char *world_fragment=
     "#version 300 es\nprecision highp float;in vec4 c;in vec3 uv;flat in float layer;uniform sampler2D tex;uniform highp sampler2DArray atlasTex;uniform int textured,alphaTest,fog,replaceAlpha;uniform float scale,threshold;uniform vec3 fogColor;out vec4 frag;void main(){vec2 st=uv.xy/max(uv.z,1e-12);vec4 t=textured==2?texture(atlasTex,vec3(st,layer)):(textured!=0?texture(tex,st):vec4(1));vec4 v=t*c;v.rgb*=textured!=0?scale:1.0;if(replaceAlpha!=0)v.a=t.a;if(fog!=0){v.rgb=mix(fogColor,v.rgb,c.a);v.a=t.a;}if(alphaTest!=0&&v.a<=threshold)discard;frag=v;}";
-static const char *uniform_names[]={"view","proj","tex","textured","alphaTest","fog","replaceAlpha","scale","threshold","fogColor"};
+static const char *uniform_names[]={"view","proj","tex","textured","alphaTest","fog","replaceAlpha","scale","threshold","fogColor","flatCam"};
 /* Upload each ordered group before any draw reads its vertex buffer. Updating a
  * shared buffer between draws serializes the Adreno driver. Texture writes are
  * barriers because the original atlas and sprite texture can be reused. */
@@ -196,9 +197,16 @@ void qgl_scene_begin(const uint8_t lut[3][256],int w,int h){
     }
     glBindFramebuffer(GL_FRAMEBUFFER,scene_targets[i].framebuffer);scene_active=true;
 }
+void qgl_flat_camera(float cx,float cy,float focal){
+    if(!isfinite(cx)||!isfinite(cy)||!isfinite(focal)||focal<=0)return;
+    float next[4]={cx,cy,2.5f/focal,2.5f};
+    if(!memcmp(next,flat_camera,sizeof next))return;
+    qgl_flush();memcpy(flat_camera,next,sizeof next);
+}
 void qgl_flush(void){
     if(!command_count)return;
     glUseProgram(program);glBindVertexArray(vao);glBindBuffer(GL_ARRAY_BUFFER,vbo);
+    glUniform4fv(uniforms[U_FLAT_CAMERA],1,flat_camera);
     glBufferData(GL_ARRAY_BUFFER,(GLsizeiptr)stream_count*sizeof(Vertex),stream,GL_STREAM_DRAW);
     for(int i=0;i<3;i++)glVertexAttribPointer(i,4,GL_FLOAT,GL_FALSE,sizeof(Vertex),(void*)(size_t)(i*16));
     glActiveTexture(GL_TEXTURE0);
@@ -291,6 +299,7 @@ void qglColor4f(float r,float g,float b,float a){color[0]=r;color[1]=g;color[2]=
 void qglTexCoord2f(float s,float t){qglTexCoord4f(s,t,0,1);}
 void qglTexCoord4f(float s,float t,float r,float q){uv[0]=s;uv[1]=t;uv[2]=r;uv[3]=q;}
 void qglVertex2f(float x,float y){if(im_count>=4096)abort();Vertex*v=&immediate[im_count++];v->p[0]=x;v->p[1]=y;v->p[2]=0;v->p[3]=0;memcpy(v->c,color,16);memcpy(v->uv,uv,16);}
+void qglVertex4f(float x,float y,float z,float w){qglVertex2f(x,y);immediate[im_count-1].p[2]=z;immediate[im_count-1].p[3]=w;}
 void qglEnd(void){if(im_mode==GL_QUADS){for(int i=0;i+3<im_count;i+=4){Vertex v[6]={immediate[i],immediate[i+1],immediate[i+2],immediate[i],immediate[i+2],immediate[i+3]};draw(v,6,GL_TRIANGLES);}}else draw(immediate,im_count,im_mode);}
 void qgl_pointer(V3 origin,V3 end){
     Vertex v[2]={{{origin.x,origin.y,origin.z,1},{.2f,.85f,1,1},{0,0,0,1}},{{end.x,end.y,end.z,1},{.2f,.85f,1,1},{0,0,0,1}}};

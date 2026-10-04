@@ -30,6 +30,7 @@
 #include "quest_options.h"
 #include "quest_cover.h"
 #include "quest_clock.h"
+#include "quest_refresh.h"
 #include "quest_ui.h"
 
 #ifdef TCVR_PC
@@ -74,6 +75,8 @@ static PFN_xrEnumerateDisplayRefreshRatesFB enumerate_rates;
 static PFN_xrRequestDisplayRefreshRateFB request_rate;
 static PFN_xrGetDisplayRefreshRateFB get_rate;
 static float preferred_rate;
+static unsigned rate_attempts;
+static XrTime rate_check_time;
 static XrView views[2];
 static V3 origin,gun_origin,gun_hit,gun_position;
 static Q4 origin_rotation={0,0,0,1},gun_rotation={0,0,0,1};
@@ -105,6 +108,25 @@ static bool xr_ok(XrResult result,const char *operation) {
 }
 #define XR(call) xr_ok((call),#call)
 #define REQUIRE(call) do { if(!XR(call))goto fail; } while(0)
+static void display_rate_request(void){
+    if(!request_rate||preferred_rate<=0)return;
+    rate_attempts++;
+    XrResult result=request_rate(session,preferred_rate);
+    fprintf(stderr,"[XR] display request %.0f Hz attempt %u: %s\n",preferred_rate,rate_attempts,XR(result)?"accepted (not yet confirmed)":"rejected");
+}
+static void display_rate_check(XrTime now){
+    if(!focused||!get_rate||preferred_rate<=0||rate_attempts>3)return;
+    if(!rate_check_time){rate_check_time=now+2000000000LL;return;}
+    if(now<rate_check_time)return;
+    float actual=0;
+    if(XR(get_rate(session,&actual))){
+        fprintf(stderr,"[XR] display verified %.0f Hz; requested %.0f Hz\n",actual,preferred_rate);
+        if(fabsf(actual-preferred_rate)<.1f){rate_attempts=4;return;}
+    }
+    if(rate_attempts<3)display_rate_request();
+    else{fprintf(stderr,"[XR] runtime retained its display rate; no further requests this focus session\n");rate_attempts=4;}
+    rate_check_time=now+2000000000LL;
+}
 static void performance_start(void){
 #ifndef TCVR_PC
     if(set_thread){
@@ -116,7 +138,7 @@ static void performance_start(void){
         XR(set_performance(session,XR_PERF_SETTINGS_DOMAIN_CPU_EXT,XR_PERF_SETTINGS_LEVEL_SUSTAINED_HIGH_EXT));
         XR(set_performance(session,XR_PERF_SETTINGS_DOMAIN_GPU_EXT,XR_PERF_SETTINGS_LEVEL_SUSTAINED_HIGH_EXT));
     }
-    if(request_rate&&preferred_rate>0)XR(request_rate(session,preferred_rate));
+    rate_attempts=0;rate_check_time=0;display_rate_request();
     float actual=0;if(get_rate&&XR(get_rate(session,&actual)))fprintf(stderr,"[XR] display requested %.0f Hz, current %.0f Hz\n",preferred_rate,actual);
 }
 static void frame_profile(uint64_t start,XrDuration period,bool visible){
@@ -126,6 +148,7 @@ static void frame_profile(uint64_t start,XrDuration period,bool visible){
     sum+=ms;if(ms>maximum)maximum=ms;if(ms>period/1e6)over++;
     if(++count==240){
         fprintf(stderr,"[XRPERF] render wall mean %.2f ms max %.2f ms over-budget %u/%u period %.2f ms\n",sum/count,maximum,over,count,period/1e6);
+        fprintf(stderr,"[XRPERF] runtime frame cadence %.2f Hz (display rate is logged separately)\n",period>0?1e9/period:0);
         fprintf(stderr,"[XRSTAGE] input %.2f acquire %.2f world %.2f overlays %.2f release %.2f end %.2f thread %.2f ms\n",profile_parts[0]/count,profile_parts[1]/count,profile_parts[2]/count,profile_parts[3]/count,profile_parts[4]/count,profile_parts[5]/count,profile_thread/count);
         memset(profile_parts,0,sizeof profile_parts);profile_thread=0;
         sum=maximum=0;count=over=0;
@@ -244,7 +267,7 @@ static bool events(void){
             if(state==XR_SESSION_STATE_STOPPING){if(running)xrEndSession(session);running=false;game_deadline=0;}
             if(state==XR_SESSION_STATE_EXITING||state==XR_SESSION_STATE_LOSS_PENDING)quit=true;
             bool focus=state==XR_SESSION_STATE_FOCUSED;
-            if(focused!=focus){focused=focus;reset_input_edges();game_deadline=0;ss22_input_neutral();eng_audio_set_volume(focus&&!paused?100:0);}
+            if(focused!=focus){focused=focus;reset_input_edges();game_deadline=0;ss22_input_neutral();eng_audio_set_volume(focus&&!paused?100:0);if(focus){rate_attempts=0;rate_check_time=0;}}
         }else if(e.type==XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING)quit=true;
         else if(e.type==XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING){recenter_requested=true;}
         else if(e.type==XR_TYPE_EVENT_DATA_DISPLAY_REFRESH_RATE_CHANGED_FB){
@@ -434,8 +457,10 @@ bool ss22_host_open(const ss22_host_game *g,int scale,bool full){
                  * 120 Hz. A private override permits other benchmarks. */
                 float wanted=120;FILE *config=fopen("refresh-rate.txt","r");if(config){if(fscanf(config,"%f",&wanted)!=1)wanted=120;fclose(config);}
                 fprintf(stderr,"[XR] supported refresh rates:");
-                for(uint32_t j=0;j<count;j++){fprintf(stderr," %.0f",rates[j]);if(fabsf(rates[j]-wanted)<.1f)preferred_rate=rates[j];}
+                for(uint32_t j=0;j<count;j++)fprintf(stderr," %.0f",rates[j]);
+                preferred_rate=qrefresh_choose(rates,count,wanted);
                 fprintf(stderr," Hz\n");
+                fprintf(stderr,"[XR] display preference %.0f Hz; supported selection %.0f Hz\n",wanted,preferred_rate);
             }
             free(rates);
         }
@@ -483,6 +508,7 @@ fail:
     fprintf(stderr,"[XR] initialization failed; SDL: %s\n",SDL_GetError());ss22_host_close();return false;
 }
 
+static void hud_camera(void){float cx,cy,focal;qvr_flat_camera(&cx,&cy,&focal);qgl_flat_camera(cx,cy,focal);}
 #ifdef TCVR_PC
 static bool desktop_frame(void){
     static Uint64 deadline;static unsigned frame_number;bool fast=getenv("TCVR_FAST")!=NULL;
@@ -502,7 +528,7 @@ static bool desktop_frame(void){
         projection(p,-atanf(.64f),atanf(.64f),-atanf(.48f),atanf(.48f));
         /* Keep a 4:3 image centered in a resizable window. */
         if((float)w/h>4.f/3.f){p[0]*=(float)vw/w;}else{p[5]*=(float)vh/h;}
-        qgl_target(0,0);qgl_eye(v,p);ss22_draw(w,h);qgl_flush();
+        hud_camera();qgl_target(0,0);qgl_eye(v,p);ss22_draw(w,h);qgl_flush();
         if(options.laser_enabled&&aim_valid&&!paused){qgl_pointer(v3(.24f,-.24f,-.45f),v3((nx-.5f)*3.2f,(.5f-ny)*2.4f,-2.5f));qgl_flush();}
         if(paused)qui_draw(v,p,v3(0,0,0),(Q4){0,0,0,1},options.laser_enabled,options.physical_crouch,options.left_handed,options_saved);
         const char *capture_frame=getenv("TCVR_CAPTURE_FRAME");
@@ -527,6 +553,7 @@ bool ss22_host_frame(void){
             if(qclock_take(&game_deadline,last_display_time)){host->input_update();return true;}
         }
         XrFrameWaitInfo wi={XR_TYPE_FRAME_WAIT_INFO};XrFrameState frame={XR_TYPE_FRAME_STATE};if(!XR(xrWaitFrame(session,&wi,&frame)))return false;
+        display_rate_check(frame.predictedDisplayTime);
         uint64_t render_start=SDL_GetPerformanceCounter();
         double cpu_start=cpu_ms(),stage_start=wall_ms(),parts[6]={0};
         XrFrameBeginInfo bi={XR_TYPE_FRAME_BEGIN_INFO};if(!XR(xrBeginFrame(session,&bi)))return false;
@@ -551,6 +578,7 @@ bool ss22_host_frame(void){
             view_matrix(v[i],relative_position(views[i].pose.position),relative_rotation(views[i].pose.orientation));
             projection(p[i],views[i].fov.angleLeft,views[i].fov.angleRight,views[i].fov.angleDown,views[i].fov.angleUp);
         }
+        hud_camera();
         bool stereo_frame=false;
         if(draw_frame&&multiview){
             stage_start=wall_ms();stereo_frame=qgl_stereo_begin(v[0],p[0],eyes[0].w,eyes[0].h);

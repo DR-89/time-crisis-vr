@@ -36,6 +36,7 @@
 void qglEnable(GLenum);void qglDisable(GLenum);void qglActiveTexture(GLenum);
 void qglAlphaFunc(GLenum,float);void qglBegin(GLenum);void qglEnd(void);
 void qglColor4f(float,float,float,float);void qglTexCoord2f(float,float);void qglTexCoord4f(float,float,float,float);void qglVertex2f(float,float);
+void qglVertex4f(float,float,float,float);
 void qglEnableClientState(GLenum);void qglDisableClientState(GLenum);
 void qglVertexPointer(GLint,GLenum,GLsizei,const void*);void qglColorPointer(GLint,GLenum,GLsizei,const void*);void qglTexCoordPointer(GLint,GLenum,GLsizei,const void*);
 void qglDrawArrays(GLenum,GLint,GLsizei);
@@ -66,6 +67,8 @@ void qglMatrixMode(GLenum);void qglLoadIdentity(void);void qglOrtho(double,doubl
 #define glTexCoord4f qglTexCoord4f
 #undef glVertex2f
 #define glVertex2f qglVertex2f
+#undef glVertex4f
+#define glVertex4f qglVertex4f
 #undef glEnableClientState
 #define glEnableClientState qglEnableClientState
 #undef glDisableClientState

@@ -70,5 +70,16 @@ for variant in range(4):
     differences=sum(x!=y for x,y in zip(expected,actual))
     assert not differences,f'Eye {variant}: {differences} channel differences'
 assert results['deferred',0]!=results['deferred',1],'Eye transforms produced identical images'
+if not a.reference:
+    oracle=bind(lib,'projection_fixture',I,I,I,I,P);projected=[]
+    for variant in range(3):
+        surface=bind(egl,'eglCreatePbufferSurface',P,P,P,P)(display,config,(I*5)(0x3057,256,0x3056,256,0x3038))
+        context=bind(egl,'eglCreateContext',P,P,P,P,P)(display,config,None,(I*3)(0x3098,3,0x3038));assert make_current(display,surface,surface,context)
+        pixels=(C.c_ubyte*(256*256*4))();assert oracle(variant,256,256,pixels)==1
+        projected.append(bytes(pixels));make_current(display,None,None,None)
+        bind(egl,'eglDestroyContext',U,P,P)(display,context);bind(egl,'eglDestroySurface',U,P,P)(display,surface)
+    assert projected[0]!=projected[1],'Camera uniform did not change the flat layer'
+    assert projected[1]==projected[2],'Flat sprites and reconstructed camera rays do not align off-centre'
+    print('PASS: flat sprite grid matches reconstructed polygons pixel-for-pixel; old 500 px projection differs.')
 bind(egl,'eglTerminate',U,P)(display)
 print('PASS: '+('raw sRGB target, ' if a.srgb else '')+('multiview' if a.multiview else 'deferred')+' both eyes, identity and non-identity gamma are byte-identical to reference; no GLES errors.')

@@ -1,5 +1,10 @@
 # Time Crisis VR for Windows
 
+**Unreleased 0.8.3-aim-test.1:** this test build aligns flat layers and fallback
+aiming with the arcade camera, and places shot marks on hit surfaces. The normal
+monitor projection stays unchanged. See `docs/AIM-PROJECTION.md` in the source
+tree for validation and limitations. The controls below are unchanged from v0.8.2.
+
 **v0.8.2:** cover now uses either grip button. Both triggers select their controller and fire. Physical ducking remains optional.
 
 Experimental native **Windows x64 / OpenXR / OpenGL 4.3** port, built on
