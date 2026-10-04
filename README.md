@@ -1,7 +1,5 @@
 # Time Crisis VR for Meta Quest 3 and Windows
 
-**Private working build: 0.8.1-gun-test.1.** The controls below describe this local test build, which has not been published. Public v0.8.1 downloads retain the previous weapon and trigger-cover controls.
-
 An experimental VR port of **Time Crisis** for **Meta Quest 3** and **Windows PCVR**, with a tracked 3D pistol, stereo rendering, original arcade gameplay and sound, and a choice of physical ducking or grip-controlled cover. The Windows build also includes a mouse-controlled monitor mode.
 
 **Built on [spacestate1/namco22-decompile](https://github.com/spacestate1/namco22-decompile).** This project adds the Android/OpenXR host, Quest renderer, VR aiming, player weapon and controls to that reconstruction. The original arcade logic and shared engine come from upstream; this is not an independent recreation of the game.
@@ -14,22 +12,18 @@ An experimental VR port of **Time Crisis** for **Meta Quest 3** and **Windows PC
 
 ## Current status
 
-**v0.8.1 — experimental, Quest ARM64 and Windows x64.** Gameplay, the player weapon, saved laser settings, menu controls and physical ducking have been tested on Quest 3. Windows desktop rendering and recorded-gameplay replay have been checked. A Quest 3 connected through Virtual Desktop displayed stereo PCVR at 90 Hz on an RTX 3050 Laptop GPU; the tester confirmed VR and controls worked. A complete playthrough and every boss/edge-case hit have not been verified.
+**v0.8.2 — experimental, Quest ARM64 and Windows x64.** This release adds an articulated arcade pistol, grip-button cover, instant trigger-based hand selection and corrected colour output. The new controls pass automated tests and the Quest test build starts with the new model and sRGB output. Human confirmation of the new gun/control combination and a new live PCVR test are still pending.
 
-Private test changes (not released):
+Changes in v0.8.2:
 
 - New CC0 arcade pistol with a moving slide and trigger; recoil does not alter the aim ray.
 - Either grip holds the virtual pedal. Both triggers select their controller and fire.
 - Saved default hand keeps face-button roles stable during play. Physical ducking remains available.
-- The privately tested sRGB colour correction is retained.
+- Corrected sRGB output prevents a second gamma encoding from washing out the arcade colours. The tester confirmed the improved appearance on Quest 3.
 
-Changes in released v0.8.1:
+**Upgrading from v0.8.1:** cover has moved from the other controller's trigger to **either grip button**. Both triggers now select their own controller and fire. Existing laser, default-hand and physical-ducking preferences are preserved. The saved default hand controls the face-button layout; automatic handoffs do not swap those buttons.
 
-- Saved left-handed mode for Quest and PCVR: open options with the **left menu button**, then **click the right thumbstick** to change **WEAPON HAND**.
-- The selected hand aims, fires and receives recoil vibration; the other trigger controls cover. Credits, laser, recenter and cover-mode buttons swap with the hand roles. Menu labels show the active layout.
-- Switching hands requires releasing the new firing trigger before shooting. Held buttons cannot accidentally toggle settings after a hand switch or focus loss.
-
-Both layouts pass automated tests of the shared host input code, saved settings and rendered menus. Left-handed play was also tested on Quest 3: the tester confirmed the mode works, including the left pistol, shooting and vibration. A separate PCVR headset test of the new layout is still pending.
+Earlier builds established Quest gameplay, physical ducking and left-handed play. A Quest 3 connected through Virtual Desktop displayed stereo PCVR at 90 Hz on an RTX 3050 Laptop GPU, and the tester confirmed VR and controls worked. Those checks predate the v0.8.2 control changes. A complete playthrough and every boss/edge-case hit have not been verified.
 
 Changes in v0.8.0:
 
@@ -46,16 +40,16 @@ The headset is asked to run at **120 Hz**. This is a target, not a guarantee of 
 
 ## Download and install
 
-1. Download **`TimeCrisisVR-v0.8.1-quest3.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases).
+1. Download **`TimeCrisisVR-v0.8.2-quest3.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases).
 2. Enable developer mode on the Quest, connect it by USB and allow USB debugging.
 3. Install the APK with SideQuest or Android platform-tools:
 
    ```sh
-   adb install -r TimeCrisisVR-v0.8.1-quest3.apk
+   adb install -r TimeCrisisVR-v0.8.2-quest3.apk
    ```
 
 4. Open **Time Crisis VR (Experimental)** from the Quest library's **Unknown sources** section.
-5. After the arcade startup, press **A on the right controller**, wait briefly for the three credits, then press the **right trigger** to start. In left-handed mode, use **X** and the **left trigger** instead.
+5. After the arcade startup, press **A on the right controller** (or **X** with the saved default hand set to LEFT), wait briefly for the three credits, then press **either trigger** to select that hand and start.
 
 The bundled release APK includes the supplied Time Crisis ROM set and prepares it automatically on first start. **No separate ZIP selection or ROM import is required for that APK.** First startup can take a little longer while files are verified. Original game content is distinct from the MIT-licensed port code; see [NOTICE.md](NOTICE.md).
 
@@ -63,7 +57,7 @@ Updates installed with `adb install -r` retain your settings and game data. Unin
 
 ### Windows / PCVR
 
-Extract **`TimeCrisisVR-v0.8.1-windows-x64.zip`** to a writable folder. Connect the
+Extract **`TimeCrisisVR-v0.8.2-windows-x64.zip`** to a writable folder. Connect the
 headset through your PC VR software, select an OpenXR runtime with OpenGL support,
 then open **Play VR.cmd**. **Play SteamVR.cmd** selects an installed SteamVR runtime
 for this launch only. **Play Desktop.cmd** starts mouse/keyboard play on a monitor.
@@ -112,7 +106,7 @@ Choose physical ducking in the menu while upright. Press **X** (right-handed) or
 - The recenter button recalibrates for a different standing/seated position. Height is recalibrated each app session; the selected mode is saved.
 - Missing head tracking releases the virtual pedal. Cover input does not depend on the weapon controller being visible.
 
-![Private test options with left default hand and grip cover](docs/images/options-english.png)
+![Options with left default hand and grip cover](docs/images/options-english.png)
 
 *Rendered from the actual menu code in the desktop GLES test fixture.*
 
@@ -178,7 +172,7 @@ Output:
 - Bundled: `artifacts/bundled/TimeCrisisVR-with-ROM.apk`
 - ROM-free: `artifacts/TimeCrisisVR-quest3-debug.apk`
 - Build metadata and SHA-256: `build-info.json` beside the corresponding APK.
-- Windows: `artifacts/pc/TimeCrisisVR-v0.8.1-windows-x64.zip` and its `.sha256` file.
+- Windows: `artifacts/pc/TimeCrisisVR-v0.8.2-windows-x64.zip` and its `.sha256` file.
 
 The bootstrap downloads pinned NDK r27c, API 34, Build Tools 35.0.0, SDL 2.30.11, OpenXR loader 1.1.43 and Ninja 1.12.1 into `.tools/`. The first build takes several minutes and multiple GB. It does not install a global Android SDK. CMake and the JDK must already be installed.
 

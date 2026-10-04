@@ -1,6 +1,6 @@
 # Time Crisis VR for Windows
 
-**Private working build: 0.8.1-gun-test.1.** These controls describe this local test build, which has not been published. Public v0.8.1 retains the previous weapon and trigger-cover controls.
+**v0.8.2:** cover now uses either grip button. Both triggers select their controller and fire. Physical ducking remains optional.
 
 Experimental native **Windows x64 / OpenXR / OpenGL 4.3** port, built on
 [spacestate1/namco22-decompile](https://github.com/spacestate1/namco22-decompile).
@@ -17,9 +17,8 @@ are shared with the standalone Quest version.
    the active runtime in your PC VR software. SteamVR is one option.
 4. Open **Play VR.cmd**. The headset receives separate stereo views; the PC
    window mirrors the left eye.
-5. Press **A** on the right controller to insert three credits, then the **right
-   trigger** to start. With left-handed controls selected, use **X left** and the
-   **left trigger** instead.
+5. Press **A right** to insert three credits (or **X left** with DEFAULT HAND set
+   to LEFT), then press **either trigger** to select that hand and start.
 
 If SteamVR is installed in a standard Steam library, **Play SteamVR.cmd** selects
 its OpenXR runtime for this launch only. It does not change the Windows default.
@@ -119,8 +118,10 @@ handling and tracking/focus loss. Both menu layouts pass stereo rendering tests.
 The tester confirmed left-handed play on standalone Quest 3. A separate live PCVR
 test of the new layout is still pending.
 
-This private gun/control build additionally passes shared-host input tests for
+The v0.8.2 gun/control changes additionally pass shared-host input tests for
 either-grip cover, trigger handoffs, short taps, fire edges, simultaneous presses
 and tracking/focus loss. GLES rendering tests cover separate slide and trigger
 motion, stereo and a fixed aim origin. Live Quest and PCVR confirmation of these
-changes is still pending.
+changes is still pending. Its sRGB colour correction passed byte-for-byte output
+checks on the Quest 3 GPU with both stereo render paths; the tester confirmed the
+improved Quest colour appearance. A live PCVR colour comparison remains pending.

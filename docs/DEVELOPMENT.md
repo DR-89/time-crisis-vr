@@ -27,6 +27,7 @@ python tests/test_patches.py
 python tests/test_gun_render.py
 python tests/test_options.py
 python tests/test_handedness.py
+python tests/test_color.py
 python tests/verify_apk.py
 python tests/verify_apk.py --apk artifacts/bundled/TimeCrisisVR-with-ROM.apk
 python tests/test_pc.py
@@ -35,7 +36,9 @@ python tests/test_pc.py --replay 'C:\path\to\last-session.inputs' --frames 15000
 
 `verify_apk.py` checks either APK variant: ROM hashes (bundled chip bytes or local build inputs), weapon bytes, ARM64 ELF files, DEX and build hash. It also checks the compiled manifest: the complete APK launches `MainActivity` directly, that activity retains both VR categories in every variant, and the optional 2D setup uses a separate task. Packaging verifies APK signing and 16 KiB ZIP alignment.
 
-`test_handedness.py` uses the LLVM/MinGW toolchain and headers installed by `Build-PC.ps1`. It compiles the real shared host input code with mocked OpenXR calls and checks both controller layouts, action bindings, pose and haptic routing, cover, saved hand, and held-input handling across switches and focus/tracking loss. `test_options.py` renders both menu layouts and checks all eight saved preference combinations. These checks do not replace an in-headset playtest.
+`test_handedness.py` uses the LLVM/MinGW toolchain and headers installed by `Build-PC.ps1`. It compiles the real shared host input code with mocked OpenXR calls and checks both grip inputs, trigger handoffs, short taps, simultaneous presses, arcade fire edges, pose/haptic routing, stable face buttons, saved defaults and focus/tracking/action loss. `test_options.py` renders both menu layouts and checks all eight saved preference combinations. `test_gun_render.py` checks eight gun views, separate slide/trigger motion, a stationary grip, the 150 ms return and stable aim origin. These checks do not replace an in-headset playtest.
+
+`test_color.py` checks sRGB capability detection, format ordering and the RGBA8 fallback. For an actual Quest GPU comparison, run `python tests/test_color_device.py --adb C:\platform-tools\adb.exe --serial YOUR_SERIAL`. It compares raw output across RGBA8, sRGB stereo and sRGB multiview, including the arcade gamma pass. ANGLE without `GL_EXT_sRGB_write_control` cannot replace that device check.
 
 For launch changes, test opening the app from the Quest library and confirm immersive display in the headset. OpenXR initialization alone does not establish that the app actually opened in VR; the v0.7.1/v0.7.2 launch regression passed that weaker check.
 
