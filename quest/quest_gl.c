@@ -2,7 +2,7 @@
 #include <GL/gl.h>
 #include "quest_gl.h"
 #include "post_gl.h"
-#include <android/log.h>
+#include "quest_log.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -33,8 +33,8 @@ typedef struct {
     GLuint texture;GLenum mode,src,dst;
     int textured,alpha,fog,replace,blend;
     GLboolean mask[4];float scale,threshold,fog_color[3];
-} DrawState;
-typedef struct { DrawState state;int first,count; } Command;
+} QDrawState;
+typedef struct { QDrawState state;int first,count; } Command;
 static Command *commands;static size_t command_count,command_capacity;
 static Vertex *stream;static size_t stream_count,stream_capacity;
 static GLuint bindings[2];static int blend_on;
@@ -54,7 +54,7 @@ static int active,texture_on[2],alpha_on,alpha_replace,im_count;
 static float rgb_scale=1,alpha_ref=.1f,fog_color[3],color[4]={1,1,1,1},uv[4]={0,0,0,1};
 static Vertex immediate[4096];static GLenum im_mode;
 static GLuint shader(GLenum type,const char *source) {
-    GLuint s=glCreateShader(type);glShaderSource(s,1,&source,NULL);glCompileShader(s);
+    GLuint s=glCreateShader(type);qgpu_shader_source(s,source);glCompileShader(s);
     GLint ok;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);
     if(!ok){char msg[4096];glGetShaderInfoLog(s,sizeof msg,NULL,msg);__android_log_print(ANDROID_LOG_ERROR,"TCVR","Shader: %s",msg);glDeleteShader(s);return 0;}return s;
 }
@@ -203,7 +203,7 @@ void qgl_flush(void){
     for(int i=0;i<3;i++)glVertexAttribPointer(i,4,GL_FLOAT,GL_FALSE,sizeof(Vertex),(void*)(size_t)(i*16));
     glActiveTexture(GL_TEXTURE0);
     for(size_t i=0;i<command_count;i++){
-        const Command *cmd=&commands[i];const DrawState *s=&cmd->state,*prev=i?&commands[i-1].state:NULL;
+        const Command *cmd=&commands[i];const QDrawState *s=&cmd->state,*prev=i?&commands[i-1].state:NULL;
         if(!prev||s->texture!=prev->texture)glBindTexture(GL_TEXTURE_2D,s->texture);
         if(!prev||s->blend!=prev->blend){if(s->blend)glEnable(GL_BLEND);else glDisable(GL_BLEND);}
         if(!prev||s->src!=prev->src||s->dst!=prev->dst)glBlendFunc(s->src,s->dst);
@@ -225,7 +225,7 @@ static void draw(const Vertex *v,int n,GLenum mode) {
     if(stream_count+(size_t)n>stream_capacity){
         size_t cap=(stream_count+n)*2;void*p=realloc(stream,cap*sizeof(Vertex));if(!p)abort();stream=p;stream_capacity=cap;
     }
-    DrawState s;memset(&s,0,sizeof s);
+    QDrawState s;memset(&s,0,sizeof s);
     s.texture=bindings[0];s.mode=mode;s.src=blend_src;s.dst=blend_dst;s.blend=blend_on;
     s.textured=texture_on[0];s.alpha=alpha_on;s.fog=texture_on[1];s.replace=alpha_replace;
     int layer=s.textured?atlas_layer(s.texture):-1;

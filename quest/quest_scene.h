@@ -1,4 +1,6 @@
 #pragma once
+/* Flat desktop view uses the original arcade projection and mouse coordinates. */
+extern int qvr_flat_view;
 #include "geo_hw.h"
 #include "vr_math.h"
 extern float qvr_units_per_meter;

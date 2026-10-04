@@ -1,4 +1,4 @@
-#include <GLES3/gl3.h>
+#include "quest_gpu.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,7 +12,7 @@ static GLint u_view,u_projection,u_model,u_albedo;
 static V3 muzzle;
 
 static GLuint compile(GLenum type,const char *source){
-    GLuint s=glCreateShader(type);glShaderSource(s,1,&source,NULL);glCompileShader(s);
+    GLuint s=glCreateShader(type);qgpu_shader_source(s,source);glCompileShader(s);
     GLint ok;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);
     if(!ok){char log[2048];glGetShaderInfoLog(s,sizeof log,NULL,log);fprintf(stderr,"[GUN] shader: %s\n",log);glDeleteShader(s);return 0;}return s;
 }

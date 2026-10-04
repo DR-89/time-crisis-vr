@@ -1,6 +1,6 @@
 /* Small stereo options panel. Reuses the upstream font; one draw and texture
  * uploads only when the displayed setting changes. No per-frame font rasterizing. */
-#include <GLES3/gl3.h>
+#include "quest_gpu.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -44,7 +44,7 @@ static void panel(bool laser,bool physical_crouch,bool saved){
     text(24,314,saved?"LEFT MENU: RESUME":"SAVING FAILED",saved?170:255,saved?193:150,saved?206:150);
 }
 static GLuint shader(GLenum type,const char *source){
-    GLuint s=glCreateShader(type);glShaderSource(s,1,&source,NULL);glCompileShader(s);GLint ok;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);
+    GLuint s=glCreateShader(type);qgpu_shader_source(s,source);glCompileShader(s);GLint ok;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);
     if(!ok){char message[1024];glGetShaderInfoLog(s,sizeof message,NULL,message);fprintf(stderr,"[UI] shader failed: %s\n",message);glDeleteShader(s);return 0;}return s;
 }
 bool qui_init(void){

@@ -14,6 +14,21 @@ def edit(name, changes, marker='TCVR_PATCH'):
     path.write_text(f'/* {marker}: guarded Quest integration. */\n' + text, encoding='utf-8')
 
 def main():
+    edit('timecris/gen/tc_lifted_tab.c', [
+        ('  rr_trap(at, t, "jump to an address that is no known instruction");', '''#ifdef TCVR
+  extern void (*tc_crate_entry(uint32_t))(uint32_t);
+  void (*extra)(uint32_t)=tc_crate_entry(t);
+  if(extra){extra(t);return;}
+#endif
+  rr_trap(at, t, "jump to an address that is no known instruction");'''),
+        ('  return 0;\n}', '''#ifdef TCVR
+  extern void (*tc_crate_entry(uint32_t))(uint32_t);
+  return tc_crate_entry(ep);
+#else
+  return 0;
+#endif
+}'''),
+    ], marker='TCVR_CRATE_COROUTINE')
     edit('engine/geo_hw.h', [('    int      direct;', '    float    vr_focal, vr_cx, vr_cy; /* original camera projection, for stereo reconstruction */\n    int      direct;')])
     edit('engine/geo_hw.c', [('    q.color = (uint32_t)color;', '    q.vr_focal = ldexpf((float)mant, -shift);\n    q.vr_cx = (float)cx; q.vr_cy = (float)cy;\n    q.color = (uint32_t)color;')])
     edit('engine/ss22_gl.c', [

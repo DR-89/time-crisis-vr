@@ -28,7 +28,7 @@ def read_options(path):
     result=Options();load(path,C.byref(result));return result.laser_enabled,result.physical_crouch
 with tempfile.TemporaryDirectory(prefix='tcvr-options-') as tmp:
     config=Path(tmp)/'quest-options.cfg';path=str(config).encode()
-    assert read_options(path)==(False,False),'Default: laser OFF and trigger control'
+    assert read_options(path)==(True,False),'Default: laser ON and trigger control'
     config.write_text('laser_enabled=1\n');assert read_options(path)==(True,False),'Upgrade must preserve laser and use trigger control'
     for laser,physical in ((False,False),(False,True),(True,True),(True,False),(False,True)):
         options=Options(laser,physical);assert save(path,C.byref(options))
@@ -36,7 +36,7 @@ with tempfile.TemporaryDirectory(prefix='tcvr-options-') as tmp:
     for key,other in [('laser_enabled','physical_crouch'),('physical_crouch','laser_enabled')]:
         for invalid in ('2','1garbage','banana'):
             config.write_text(f'{key}={invalid}\n{other}=1\n')
-            assert read_options(path)==(key!='laser_enabled',key!='physical_crouch')
+            assert read_options(path)==(True,key!='physical_crouch')
     assert not save(str(Path(tmp)/'missing/options.cfg').encode(),C.byref(Options(True,True))),'Write failure must be reported'
 calibrate=bind(lib,'qcover_calibrate',None,C.POINTER(Cover),C.c_float)
 pedal=bind(lib,'qcover_pedal',C.c_bool,C.POINTER(Cover),C.c_float,C.c_bool)

@@ -1,12 +1,18 @@
 /* Quest host for the existing SS22 scheduler. All OpenXR/GL work stays on SDL's main thread. */
+#ifdef TCVR_PC
+#include <windows.h>
+#include <unknwn.h>
+#include <SDL2/SDL_syswm.h>
+#else
 #include <jni.h>
 #include <EGL/egl.h>
-#include <GLES3/gl3.h>
+#endif
+#include "quest_gpu.h"
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_system.h>
-#include <android/log.h>
+#include "quest_log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,10 +28,20 @@
 #include "quest_gun.h"
 #include "quest_options.h"
 #include "quest_cover.h"
+#include "quest_clock.h"
 #include "quest_ui.h"
 
+#ifdef TCVR_PC
+typedef XrSwapchainImageOpenGLKHR QSwapchainImage;
+#define Q_SWAPCHAIN_IMAGE XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR
+static bool desktop;
+#else
+typedef XrSwapchainImageOpenGLESKHR QSwapchainImage;
+#define Q_SWAPCHAIN_IMAGE XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_ES_KHR
+#endif
 static SDL_Window *window;
 static SDL_GLContext context;
+static bool gpu_ready;
 static XrInstance instance;
 static XrSession session;
 static XrSpace local_space,aim_space;
@@ -41,8 +57,12 @@ static QCover cover;
 static bool cover_calibration_pending=true;
 static const char *options_path="quest-options.cfg";
 static XrTime game_deadline;
+static XrTime last_display_time;
+static bool last_tracking;
 static PFN_xrPerfSettingsSetPerformanceLevelEXT set_performance;
+#ifndef TCVR_PC
 static PFN_xrSetAndroidApplicationThreadKHR set_thread;
+#endif
 static PFN_xrEnumerateDisplayRefreshRatesFB enumerate_rates;
 static PFN_xrRequestDisplayRefreshRateFB request_rate;
 static PFN_xrGetDisplayRefreshRateFB get_rate;
@@ -55,9 +75,18 @@ static bool aim_valid,gun_tracked;
 static uint64_t recoil_started;
 static int coin_frames;
 static const ss22_host_game *host;
-static struct Eye { XrSwapchain chain;uint32_t w,h,n;XrSwapchainImageOpenGLESKHR *images;GLuint *fb,depth; } eyes[2];
+static struct Eye { XrSwapchain chain;uint32_t w,h,n;QSwapchainImage *images;GLuint *fb,depth; } eyes[2];
 static double profile_parts[6],profile_thread;
-static double cpu_ms(void){struct timespec t;clock_gettime(CLOCK_THREAD_CPUTIME_ID,&t);return t.tv_sec*1000.0+t.tv_nsec/1e6;}
+static double cpu_ms(void){
+#ifdef TCVR_PC
+    FILETIME created,exited,kernel,user;ULARGE_INTEGER k,u;
+    if(!GetThreadTimes(GetCurrentThread(),&created,&exited,&kernel,&user))return 0;
+    k.LowPart=kernel.dwLowDateTime;k.HighPart=kernel.dwHighDateTime;
+    u.LowPart=user.dwLowDateTime;u.HighPart=user.dwHighDateTime;return (k.QuadPart+u.QuadPart)/10000.;
+#else
+    struct timespec t;clock_gettime(CLOCK_THREAD_CPUTIME_ID,&t);return t.tv_sec*1000.0+t.tv_nsec/1e6;
+#endif
+}
 static double wall_ms(void){return SDL_GetPerformanceCounter()*1000.0/SDL_GetPerformanceFrequency();}
 
 static bool xr_ok(XrResult result,const char *operation) {
@@ -70,10 +99,12 @@ static bool xr_ok(XrResult result,const char *operation) {
 #define XR(call) xr_ok((call),#call)
 #define REQUIRE(call) do { if(!XR(call))goto fail; } while(0)
 static void performance_start(void){
+#ifndef TCVR_PC
     if(set_thread){
         XR(set_thread(session,XR_ANDROID_THREAD_TYPE_APPLICATION_MAIN_KHR,(uint32_t)gettid()));
         XR(set_thread(session,XR_ANDROID_THREAD_TYPE_RENDERER_MAIN_KHR,(uint32_t)gettid()));
     }
+#endif
     if(set_performance){
         XR(set_performance(session,XR_PERF_SETTINGS_DOMAIN_CPU_EXT,XR_PERF_SETTINGS_LEVEL_SUSTAINED_HIGH_EXT));
         XR(set_performance(session,XR_PERF_SETTINGS_DOMAIN_GPU_EXT,XR_PERF_SETTINGS_LEVEL_SUSTAINED_HIGH_EXT));
@@ -153,7 +184,20 @@ static void capture_eye(int eye,int w,int h){
 }
 
 static bool events(void){
-    SDL_Event s;while(SDL_PollEvent(&s)){if(s.type==SDL_QUIT)quit=true;}
+    SDL_Event s;while(SDL_PollEvent(&s)){
+        if(s.type==SDL_QUIT)quit=true;
+#ifdef TCVR_PC
+        if(s.type==SDL_KEYDOWN&&!s.key.repeat){
+            if(s.key.keysym.sym==SDLK_ESCAPE)paused=!paused;
+            if(s.key.keysym.sym==SDLK_c)coin_frames=36;
+            if(s.key.keysym.sym==SDLK_l){options.laser_enabled=!options.laser_enabled;options_saved=qoptions_save(options_path,&options);}
+            if(s.key.keysym.sym==SDLK_r)recenter_requested=true;
+        }
+#endif
+    }
+#ifdef TCVR_PC
+    if(desktop)return !quit;
+#endif
     XrEventDataBuffer e={XR_TYPE_EVENT_DATA_BUFFER};XrResult result;
     while((result=xrPollEvent(instance,&e))==XR_SUCCESS){
         if(e.type==XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED){
@@ -226,20 +270,47 @@ bool ss22_host_open(const ss22_host_game *g,int scale,bool full){
     (void)scale;(void)full;host=g;
     qoptions_load(options_path,&options);fprintf(stderr,"[OPTIONS] laser %s; cover %s (menu left: options, Y: cover mode)\n",options.laser_enabled?"ON":"OFF",options.physical_crouch?"PHYSICAL":"TRIGGER");
     if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_EVENTS)!=0)goto fail;
+#ifdef TCVR_PC
+    desktop=getenv("TCVR_DESKTOP")!=NULL;qvr_flat_view=desktop&&!getenv("TCVR_SCENE_VIEW");
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,4);SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,3);
+#else
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,SDL_GL_CONTEXT_PROFILE_ES);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,3);SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,0);
+#endif
     SDL_GL_SetAttribute(SDL_GL_RED_SIZE,8);SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE,8);SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE,8);SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE,8);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,0);SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1);
+#ifdef TCVR_PC
+    window=SDL_CreateWindow("Time Crisis VR",SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,1280,960,SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
+#else
     window=SDL_CreateWindow("Time Crisis VR",0,0,1280,720,SDL_WINDOW_OPENGL|SDL_WINDOW_FULLSCREEN);
+#endif
     if(!window)goto fail;context=SDL_GL_CreateContext(window);if(!context)goto fail;
+#ifdef TCVR_PC
+    if(!gladLoadGL((GLADloadfunc)SDL_GL_GetProcAddress))goto fail;
+    gpu_ready=true;glDisable(GL_FRAMEBUFFER_SRGB);
+    SDL_GL_SetSwapInterval(0);
+    if(desktop)goto graphics_ready;
+    const char *extensions[5]={XR_KHR_OPENGL_ENABLE_EXTENSION_NAME};
+    uint32_t extension_count=1;
+#else
+    gpu_ready=true;
     JNIEnv *env=SDL_AndroidGetJNIEnv();JavaVM *vm=NULL;(*env)->GetJavaVM(env,&vm);jobject activity=SDL_AndroidGetActivity();
     PFN_xrInitializeLoaderKHR init=NULL;
     REQUIRE(xrGetInstanceProcAddr(XR_NULL_HANDLE,"xrInitializeLoaderKHR",(PFN_xrVoidFunction*)&init));
     XrLoaderInitInfoAndroidKHR loader={XR_TYPE_LOADER_INIT_INFO_ANDROID_KHR};loader.applicationVM=vm;loader.applicationContext=activity;
     REQUIRE(init((XrLoaderInitInfoBaseHeaderKHR*)&loader));
     const char *extensions[5]={XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME,XR_KHR_OPENGL_ES_ENABLE_EXTENSION_NAME};
-    const char *optional[]={XR_EXT_PERFORMANCE_SETTINGS_EXTENSION_NAME,XR_KHR_ANDROID_THREAD_SETTINGS_EXTENSION_NAME,XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME};
-    bool enabled[3]={false,false,false};uint32_t extension_count=2,available_count=0;
+    uint32_t extension_count=2;
+#endif
+    const char *optional[]={XR_EXT_PERFORMANCE_SETTINGS_EXTENSION_NAME,
+#ifdef TCVR_PC
+        "",
+#else
+        XR_KHR_ANDROID_THREAD_SETTINGS_EXTENSION_NAME,
+#endif
+        XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME};
+    bool enabled[3]={false,false,false};uint32_t available_count=0;
     REQUIRE(xrEnumerateInstanceExtensionProperties(NULL,0,&available_count,NULL));
     XrExtensionProperties *available=calloc(available_count,sizeof *available);if(!available)goto fail;
     for(uint32_t i=0;i<available_count;i++)available[i].type=XR_TYPE_EXTENSION_PROPERTIES;
@@ -248,12 +319,23 @@ bool ss22_host_open(const ss22_host_game *g,int scale,bool full){
         extensions[extension_count++]=optional[k];enabled[k]=true;break;
     }
     free(available);if(!XR(enumeration))goto fail;
+#ifndef TCVR_PC
     XrInstanceCreateInfoAndroidKHR android={XR_TYPE_INSTANCE_CREATE_INFO_ANDROID_KHR};android.applicationVM=vm;android.applicationActivity=activity;
-    XrInstanceCreateInfo ic={XR_TYPE_INSTANCE_CREATE_INFO};ic.next=&android;ic.enabledExtensionCount=extension_count;ic.enabledExtensionNames=extensions;
+#endif
+    XrInstanceCreateInfo ic={XR_TYPE_INSTANCE_CREATE_INFO};
+#ifndef TCVR_PC
+    ic.next=&android;
+#endif
+    ic.enabledExtensionCount=extension_count;ic.enabledExtensionNames=extensions;
     strcpy(ic.applicationInfo.applicationName,"Time Crisis VR");ic.applicationInfo.applicationVersion=1;strcpy(ic.applicationInfo.engineName,"Namco22 Quest");ic.applicationInfo.engineVersion=1;ic.applicationInfo.apiVersion=XR_MAKE_VERSION(1,0,34);
-    REQUIRE(xrCreateInstance(&ic,&instance));(*env)->DeleteLocalRef(env,activity);
+    REQUIRE(xrCreateInstance(&ic,&instance));
+#ifndef TCVR_PC
+    (*env)->DeleteLocalRef(env,activity);
+#endif
     if(enabled[0])XR(xrGetInstanceProcAddr(instance,"xrPerfSettingsSetPerformanceLevelEXT",(PFN_xrVoidFunction*)&set_performance));
+#ifndef TCVR_PC
     if(enabled[1])XR(xrGetInstanceProcAddr(instance,"xrSetAndroidApplicationThreadKHR",(PFN_xrVoidFunction*)&set_thread));
+#endif
     if(enabled[2]){
         XR(xrGetInstanceProcAddr(instance,"xrEnumerateDisplayRefreshRatesFB",(PFN_xrVoidFunction*)&enumerate_rates));
         XR(xrGetInstanceProcAddr(instance,"xrRequestDisplayRefreshRateFB",(PFN_xrVoidFunction*)&request_rate));
@@ -261,6 +343,15 @@ bool ss22_host_open(const ss22_host_game *g,int scale,bool full){
     }
     XrSystemGetInfo system_info={XR_TYPE_SYSTEM_GET_INFO};system_info.formFactor=XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;XrSystemId system;
     REQUIRE(xrGetSystem(instance,&system_info,&system));
+#ifdef TCVR_PC
+    PFN_xrGetOpenGLGraphicsRequirementsKHR requirements=NULL;
+    REQUIRE(xrGetInstanceProcAddr(instance,"xrGetOpenGLGraphicsRequirementsKHR",(PFN_xrVoidFunction*)&requirements));
+    XrGraphicsRequirementsOpenGLKHR req={XR_TYPE_GRAPHICS_REQUIREMENTS_OPENGL_KHR};REQUIRE(requirements(instance,system,&req));
+    GLint major=0,minor=0;glGetIntegerv(GL_MAJOR_VERSION,&major);glGetIntegerv(GL_MINOR_VERSION,&minor);
+    XrVersion version=XR_MAKE_VERSION(major,minor,0);
+    if(version<req.minApiVersionSupported||version>req.maxApiVersionSupported){fprintf(stderr,"[XR] OpenGL version outside runtime range\n");goto fail;}
+    XrGraphicsBindingOpenGLWin32KHR binding={XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR};binding.hDC=wglGetCurrentDC();binding.hGLRC=wglGetCurrentContext();
+#else
     PFN_xrGetOpenGLESGraphicsRequirementsKHR requirements=NULL;
     REQUIRE(xrGetInstanceProcAddr(instance,"xrGetOpenGLESGraphicsRequirementsKHR",(PFN_xrVoidFunction*)&requirements));
     XrGraphicsRequirementsOpenGLESKHR req={XR_TYPE_GRAPHICS_REQUIREMENTS_OPENGL_ES_KHR};REQUIRE(requirements(instance,system,&req));
@@ -269,6 +360,7 @@ bool ss22_host_open(const ss22_host_game *g,int scale,bool full){
     EGLint attributes[]={EGL_CONFIG_ID,config_id,EGL_NONE};EGLConfig config;
     if(!eglChooseConfig(display,attributes,&config,1,&count)||!count)goto fail;
     XrGraphicsBindingOpenGLESAndroidKHR binding={XR_TYPE_GRAPHICS_BINDING_OPENGL_ES_ANDROID_KHR};binding.display=display;binding.config=config;binding.context=egl_context;
+#endif
     XrSessionCreateInfo sc={XR_TYPE_SESSION_CREATE_INFO};sc.next=&binding;sc.systemId=system;REQUIRE(xrCreateSession(instance,&sc,&session));
     if(enumerate_rates){
         uint32_t count=0;
@@ -288,39 +380,89 @@ bool ss22_host_open(const ss22_host_game *g,int scale,bool full){
     XrReferenceSpaceCreateInfo rc={XR_TYPE_REFERENCE_SPACE_CREATE_INFO};rc.referenceSpaceType=XR_REFERENCE_SPACE_TYPE_LOCAL;rc.poseInReferenceSpace.orientation.w=1;REQUIRE(xrCreateReferenceSpace(session,&rc,&local_space));
     if(!actions_init())goto fail;
     uint32_t format_count;REQUIRE(xrEnumerateSwapchainFormats(session,0,&format_count,NULL));int64_t *formats=calloc(format_count,sizeof *formats);if(!formats)goto fail;
-    XrResult fmt_result=xrEnumerateSwapchainFormats(session,format_count,&format_count,formats);bool have_rgba=false;
-    for(uint32_t i=0;i<format_count;i++)if(formats[i]==GL_RGBA8)have_rgba=true;free(formats);if(!XR(fmt_result)||!have_rgba){fprintf(stderr,"[XR] RGBA8 swapchain unavailable\n");goto fail;}
+    XrResult fmt_result=xrEnumerateSwapchainFormats(session,format_count,&format_count,formats);int64_t color_format=0;
+#ifdef TCVR_PC
+    for(uint32_t i=0;i<format_count;i++)if(formats[i]==GL_SRGB8_ALPHA8)color_format=GL_SRGB8_ALPHA8;
+#endif
+    for(uint32_t i=0;i<format_count;i++)if(formats[i]==GL_RGBA8)color_format=GL_RGBA8;
+    free(formats);if(!XR(fmt_result)||!color_format){fprintf(stderr,"[XR] No supported 8-bit color swapchain\n");goto fail;}
     uint32_t view_count;REQUIRE(xrEnumerateViewConfigurationViews(instance,system,XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,0,&view_count,NULL));if(view_count!=2)goto fail;
     XrViewConfigurationView configs[2]={{XR_TYPE_VIEW_CONFIGURATION_VIEW},{XR_TYPE_VIEW_CONFIGURATION_VIEW}};
     REQUIRE(xrEnumerateViewConfigurationViews(instance,system,XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,2,&view_count,configs));
     for(int i=0;i<2;i++){
         struct Eye *eye=&eyes[i];eye->w=configs[i].recommendedImageRectWidth;eye->h=configs[i].recommendedImageRectHeight;
-        float factor=fminf(1,1440.f/fmaxf(eye->w,eye->h));eye->w=(uint32_t)(eye->w*factor);eye->h=(uint32_t)(eye->h*factor);
-        XrSwapchainCreateInfo cc={XR_TYPE_SWAPCHAIN_CREATE_INFO};cc.usageFlags=XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT|XR_SWAPCHAIN_USAGE_SAMPLED_BIT;cc.format=GL_RGBA8;cc.sampleCount=1;cc.width=eye->w;cc.height=eye->h;cc.faceCount=1;cc.arraySize=1;cc.mipCount=1;
+#ifdef TCVR_PC
+        float factor=fminf(1,2160.f/fmaxf(eye->w,eye->h));
+#else
+        float factor=fminf(1,1440.f/fmaxf(eye->w,eye->h));
+#endif
+       eye->w=(uint32_t)(eye->w*factor);eye->h=(uint32_t)(eye->h*factor);
+        XrSwapchainCreateInfo cc={XR_TYPE_SWAPCHAIN_CREATE_INFO};cc.usageFlags=XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT|XR_SWAPCHAIN_USAGE_SAMPLED_BIT;cc.format=color_format;cc.sampleCount=1;cc.width=eye->w;cc.height=eye->h;cc.faceCount=1;cc.arraySize=1;cc.mipCount=1;
         REQUIRE(xrCreateSwapchain(session,&cc,&eye->chain));REQUIRE(xrEnumerateSwapchainImages(eye->chain,0,&eye->n,NULL));
         eye->images=calloc(eye->n,sizeof(*eye->images));eye->fb=calloc(eye->n,sizeof(GLuint));if(!eye->images||!eye->fb)goto fail;
-        for(uint32_t j=0;j<eye->n;j++)eye->images[j].type=XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_ES_KHR;
+        for(uint32_t j=0;j<eye->n;j++)eye->images[j].type=Q_SWAPCHAIN_IMAGE;
         REQUIRE(xrEnumerateSwapchainImages(eye->chain,eye->n,&eye->n,(XrSwapchainImageBaseHeader*)eye->images));
         glGenFramebuffers(eye->n,eye->fb);
         glGenRenderbuffers(1,&eye->depth);glBindRenderbuffer(GL_RENDERBUFFER,eye->depth);glRenderbufferStorage(GL_RENDERBUFFER,GL_DEPTH_COMPONENT24,eye->w,eye->h);
         for(uint32_t j=0;j<eye->n;j++){glBindFramebuffer(GL_FRAMEBUFFER,eye->fb[j]);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,eye->images[j].image,0);glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_RENDERBUFFER,eye->depth);if(glCheckFramebufferStatus(GL_FRAMEBUFFER)!=GL_FRAMEBUFFER_COMPLETE)goto fail;}
         views[i]=(XrView){XR_TYPE_VIEW};
     }
+graphics_ready:
     if(!qgl_init())goto fail;
+#ifndef TCVR_PC
     multiview=eyes[0].w==eyes[1].w&&eyes[0].h==eyes[1].h&&qgl_stereo_init(SDL_GL_GetProcAddress("glFramebufferTextureMultiviewOVR"));
+#endif
     if(!qgun_init("models/player-gun.tcgun"))goto fail;
     if(!qui_init())goto fail;
     ss22_gl_set_gun_flash(false);eng_audio_set_gain(g->out_gain);eng_audio_open();g->snd_set_output(true);g->input_init();
-    active=true;fprintf(stderr,"[XR] Quest initialized: %ux%u per eye; %s\n",eyes[0].w,eyes[0].h,glGetString(GL_RENDERER));return true;
+    active=true;fprintf(stderr,"[XR] Renderer initialized: %ux%u per eye; %s\n",eyes[0].w,eyes[0].h,glGetString(GL_RENDERER));return true;
 fail:
-    fprintf(stderr,"[XR] initialization failed; SDL: %s EGL: 0x%x\n",SDL_GetError(),eglGetError());ss22_host_close();return false;
+    fprintf(stderr,"[XR] initialization failed; SDL: %s\n",SDL_GetError());ss22_host_close();return false;
 }
 
+#ifdef TCVR_PC
+static bool desktop_frame(void){
+    static Uint64 deadline;static unsigned frame_number;bool fast=getenv("TCVR_FAST")!=NULL;
+    for(;;){
+        if(!events())return false;
+        int w,h,mx,my;SDL_GL_GetDrawableSize(window,&w,&h);int lw,lh;SDL_GetWindowSize(window,&lw,&lh);
+        if(w<=0||h<=0||lw<=0||lh<=0){SDL_Delay(20);continue;}
+        Uint32 mouse=SDL_GetMouseState(&mx,&my);focused=!!(SDL_GetWindowFlags(window)&SDL_WINDOW_INPUT_FOCUS);
+        nx=fminf(1,fmaxf(0,(float)mx/lw));ny=fminf(1,fmaxf(0,(float)my/lh));
+        aim_valid=true;gun_tracked=false;trigger=focused&&!paused&&(mouse&SDL_BUTTON_LMASK)?1:0;
+        pedal=focused&&!paused&&((mouse&SDL_BUTTON_RMASK)||SDL_GetKeyboardState(NULL)[SDL_SCANCODE_SPACE])?1:0;
+        /* Match the original 640x480 camera exactly for mouse aiming and tests. */
+        int vw=w,vh=w*3/4;if(vh>h){vh=h;vw=h*4/3;}
+        nx=((float)mx/lw*w-(w-vw)*.5f)/vw;ny=((float)my/lh*h-(h-vh)*.5f)/vh;
+        aim_valid=nx>=0&&nx<=1&&ny>=0&&ny<=1;
+        float v[16],p[16];view_matrix(v,v3(0,0,0),(Q4){0,0,0,1});
+        projection(p,-atanf(.64f),atanf(.64f),-atanf(.48f),atanf(.48f));
+        /* Keep a 4:3 image centered in a resizable window. */
+        if((float)w/h>4.f/3.f){p[0]*=(float)vw/w;}else{p[5]*=(float)vh/h;}
+        qgl_target(0,0);qgl_eye(v,p);ss22_draw(w,h);qgl_flush();
+        if(options.laser_enabled&&aim_valid&&!paused){qgl_pointer(v3(.24f,-.24f,-.45f),v3((nx-.5f)*3.2f,(.5f-ny)*2.4f,-2.5f));qgl_flush();}
+        if(paused)qui_draw(v,p,v3(0,0,0),(Q4){0,0,0,1},options.laser_enabled,options.physical_crouch,options_saved);
+        const char *capture_frame=getenv("TCVR_CAPTURE_FRAME");
+        if(capture_frame&&++frame_number==strtoul(capture_frame,NULL,10)){FILE *f=fopen("capture.request","w");if(f)fclose(f);}
+        if(!access("capture.request",F_OK)){capture_eye(0,w,h);unlink("capture.request");}
+        GLenum error=glGetError();if(error)fprintf(stderr,"[GL] desktop error 0x%x\n",error);
+        SDL_GL_SwapWindow(window);
+        if(!fast){Uint64 now=SDL_GetPerformanceCounter(),freq=SDL_GetPerformanceFrequency();if(!deadline||now>deadline+freq/4)deadline=now;deadline+=freq*1000/59906;while((now=SDL_GetPerformanceCounter())<deadline)SDL_Delay(1);}
+        if(!paused){host->input_update();return true;}
+    }
+}
+#endif
 bool ss22_host_frame(void){
+#ifdef TCVR_PC
+    if(desktop)return desktop_frame();
+#endif
     /* The original game runs at 59.906 Hz. Submit additional poses without advancing its CPU at headset refresh. */
     for(;;){
         if(!events())return false;
         if(!running){SDL_Delay(10);continue;}
+        if(game_deadline&&focused&&!paused&&last_tracking&&last_display_time>=game_deadline){
+            if(qclock_take(&game_deadline,last_display_time)){host->input_update();return true;}
+        }
         XrFrameWaitInfo wi={XR_TYPE_FRAME_WAIT_INFO};XrFrameState frame={XR_TYPE_FRAME_STATE};if(!XR(xrWaitFrame(session,&wi,&frame)))return false;
         uint64_t render_start=SDL_GetPerformanceCounter();
         double cpu_start=cpu_ms(),stage_start=wall_ms(),parts[6]={0};
@@ -329,6 +471,7 @@ bool ss22_host_frame(void){
         bool located=XR(xrLocateViews(session,&li,&vs,2,&n,views));
         XrViewStateFlags valid=XR_VIEW_STATE_ORIENTATION_VALID_BIT|XR_VIEW_STATE_POSITION_VALID_BIT;
         bool tracking=located&&n==2&&(vs.viewStateFlags&valid)==valid;
+        last_display_time=frame.predictedDisplayTime;last_tracking=tracking;
         if(tracking&&(!origin_set||recenter_requested)){
             origin=mul(add(vec(views[0].pose.position),vec(views[1].pose.position)),.5f);origin_rotation=yaw_only(quat(views[0].pose.orientation));origin_set=true;recenter_requested=false;
             cover_calibration_pending=true;
@@ -375,6 +518,14 @@ bool ss22_host_frame(void){
             parts[3]+=wall_ms()-stage_start;stage_start=wall_ms();
             const GLenum discard[]={GL_DEPTH_ATTACHMENT};glInvalidateFramebuffer(GL_FRAMEBUFFER,1,discard);
             GLenum error=glGetError();if(error)fprintf(stderr,"[XR] eye %d GL error 0x%x\n",i,error);
+#ifdef TCVR_PC
+            if(i==0){
+                int mw,mh;SDL_GL_GetDrawableSize(window,&mw,&mh);
+                glBindFramebuffer(GL_READ_FRAMEBUFFER,eye->fb[index]);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,0);
+                glBlitFramebuffer(0,0,eye->w,eye->h,0,0,mw,mh,GL_COLOR_BUFFER_BIT,GL_LINEAR);
+                SDL_GL_SwapWindow(window);glBindFramebuffer(GL_FRAMEBUFFER,eye->fb[index]);
+            }
+#endif
             glFlush();
             XrSwapchainImageReleaseInfo rel={XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};if(!XR(xrReleaseSwapchainImage(eye->chain,&rel))){frame_ok=false;break;}
             pv[i].pose=views[i].pose;pv[i].fov=views[i].fov;pv[i].subImage.swapchain=eye->chain;pv[i].subImage.imageRect.extent=(XrExtent2Di){eye->w,eye->h};
@@ -390,8 +541,7 @@ bool ss22_host_frame(void){
         else{memset(profile_parts,0,sizeof profile_parts);profile_thread=0;}
         frame_profile(render_start,frame.predictedDisplayPeriod,draw_frame&&focused&&!paused);
         if(!focused||paused||!tracking){ss22_input_neutral();game_deadline=0;continue;}
-        if(!game_deadline||llabs(frame.predictedDisplayTime-game_deadline)>250000000)game_deadline=frame.predictedDisplayTime;
-        if(frame.predictedDisplayTime>=game_deadline){game_deadline+=16692818;host->input_update();return true;}
+        if(qclock_take(&game_deadline,frame.predictedDisplayTime)){host->input_update();return true;}
     }
 }
 void ss22_input_init(const ss22_input_game *g){(void)g;}
@@ -421,10 +571,10 @@ bool ss22_host_pointer(float *x,float *y,bool *inside){*x=nx;*y=ny;*inside=aim_v
 void ss22_host_shot(const char *p){(void)p;}
 void ss22_host_close(void){
     active=false;eng_audio_close();
-    if(context){qui_shutdown();qgun_shutdown();qgl_shutdown();}
-    for(int i=0;i<2;i++){if(context&&eyes[i].fb)glDeleteFramebuffers(eyes[i].n,eyes[i].fb);if(context)glDeleteRenderbuffers(1,&eyes[i].depth);if(eyes[i].chain)xrDestroySwapchain(eyes[i].chain);free(eyes[i].images);free(eyes[i].fb);memset(&eyes[i],0,sizeof eyes[i]);}
+    if(context&&gpu_ready){qui_shutdown();qgun_shutdown();qgl_shutdown();}
+    for(int i=0;i<2;i++){if(context&&gpu_ready&&eyes[i].fb)glDeleteFramebuffers(eyes[i].n,eyes[i].fb);if(context&&gpu_ready)glDeleteRenderbuffers(1,&eyes[i].depth);if(eyes[i].chain)xrDestroySwapchain(eyes[i].chain);free(eyes[i].images);free(eyes[i].fb);memset(&eyes[i],0,sizeof eyes[i]);}
     if(aim_space)xrDestroySpace(aim_space);if(local_space)xrDestroySpace(local_space);
     if(session)xrDestroySession(session);if(action_set)xrDestroyActionSet(action_set);if(instance)xrDestroyInstance(instance);
     aim_space=local_space=0;session=0;action_set=0;instance=0;running=false;
-    if(context)SDL_GL_DeleteContext(context);context=NULL;if(window)SDL_DestroyWindow(window);window=NULL;SDL_Quit();
+    if(context)SDL_GL_DeleteContext(context);context=NULL;gpu_ready=false;if(window)SDL_DestroyWindow(window);window=NULL;SDL_Quit();
 }

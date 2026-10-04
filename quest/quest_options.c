@@ -2,8 +2,8 @@
 #include <stdio.h>
 
 void qoptions_load(const char *path,QOptions *options){
-    /* Existing installations retain trigger control; laser remains opt-in. */
-    *options=(QOptions){0};
+    /* New/missing settings use laser assistance. Explicit saved OFF stays OFF. */
+    *options=(QOptions){.laser_enabled=true};
     FILE *f=fopen(path,"r");if(!f)return;
     char line[128],extra;int value;
     while(fgets(line,sizeof line,f)){

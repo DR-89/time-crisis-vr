@@ -2,7 +2,7 @@
 from pathlib import Path
 import argparse, hashlib, json, os, shutil, subprocess, sys, tempfile, zipfile
 import xml.etree.ElementTree as ET
-import bootstrap, patch_upstream
+import bootstrap, patch_upstream, translate_crate
 ROOT=Path(__file__).resolve().parents[1]
 BUILD=ROOT/'build'
 JAVA=Path(os.environ.get('JAVA_HOME',r'C:\Program Files\Android\Android Studio\jbr'))/'bin'
@@ -33,6 +33,7 @@ def prepare_sound():
     run([sys.executable,ROOT/'upstream/tools/gen/snd_translate.py',coverage,'--game','tc','--roms',tc/'extracted','--out',generated],tc)
     target=tc/'gen/tc_snd_driver.c'
     if not target.exists() or target.read_bytes()!=generated.read_bytes():shutil.copy2(generated,target)
+    translate_crate.main()
 
 def package_manifest(bundle_roms):
     """The OpenXR activity must retain its own VR categories in both variants."""

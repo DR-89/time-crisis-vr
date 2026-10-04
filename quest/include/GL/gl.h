@@ -1,7 +1,9 @@
 /* Minimal fixed-function adapter for the engine's actual GL calls, backed by GLES 3. */
 #pragma once
-#include <GLES3/gl3.h>
+#include "quest_gpu.h"
+#ifndef APIENTRY
 #define APIENTRY GL_APIENTRY
+#endif
 #define GL_VERSION_1_3 1
 #define GL_QUADS 0x0007
 #define GL_ALPHA_TEST 0x0BC0
@@ -44,35 +46,66 @@ void qglTexParameteri(GLenum,GLenum,GLint);void qglDeleteTextures(GLsizei,const 
 void qglTexEnvi(GLenum,GLenum,GLint);void qglTexEnvf(GLenum,GLenum,GLfloat);void qglTexEnvfv(GLenum,GLenum,const GLfloat*);
 void qglMatrixMode(GLenum);void qglLoadIdentity(void);void qglOrtho(double,double,double,double,double,double);void qglScissor(GLint,GLint,GLsizei,GLsizei);
 #ifndef QGL_IMPLEMENTATION
+#undef glEnable
 #define glEnable qglEnable
+#undef glDisable
 #define glDisable qglDisable
+#undef glActiveTexture
 #define glActiveTexture qglActiveTexture
+#undef glAlphaFunc
 #define glAlphaFunc qglAlphaFunc
+#undef glBegin
 #define glBegin qglBegin
+#undef glEnd
 #define glEnd qglEnd
+#undef glColor4f
 #define glColor4f qglColor4f
+#undef glTexCoord2f
 #define glTexCoord2f qglTexCoord2f
+#undef glTexCoord4f
 #define glTexCoord4f qglTexCoord4f
+#undef glVertex2f
 #define glVertex2f qglVertex2f
+#undef glEnableClientState
 #define glEnableClientState qglEnableClientState
+#undef glDisableClientState
 #define glDisableClientState qglDisableClientState
+#undef glVertexPointer
 #define glVertexPointer qglVertexPointer
+#undef glColorPointer
 #define glColorPointer qglColorPointer
+#undef glTexCoordPointer
 #define glTexCoordPointer qglTexCoordPointer
+#undef glDrawArrays
 #define glDrawArrays qglDrawArrays
+#undef glBindTexture
 #define glBindTexture qglBindTexture
+#undef glBlendFunc
 #define glBlendFunc qglBlendFunc
+#undef glColorMask
 #define glColorMask qglColorMask
+#undef glClear
 #define glClear qglClear
+#undef glTexImage2D
 #define glTexImage2D qglTexImage2D
+#undef glTexSubImage2D
 #define glTexSubImage2D qglTexSubImage2D
+#undef glTexParameteri
 #define glTexParameteri qglTexParameteri
+#undef glDeleteTextures
 #define glDeleteTextures qglDeleteTextures
+#undef glTexEnvi
 #define glTexEnvi qglTexEnvi
+#undef glTexEnvf
 #define glTexEnvf qglTexEnvf
+#undef glTexEnvfv
 #define glTexEnvfv qglTexEnvfv
+#undef glMatrixMode
 #define glMatrixMode qglMatrixMode
+#undef glLoadIdentity
 #define glLoadIdentity qglLoadIdentity
+#undef glOrtho
 #define glOrtho qglOrtho
+#undef glScissor
 #define glScissor qglScissor
 #endif
