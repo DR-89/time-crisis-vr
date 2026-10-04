@@ -34,6 +34,26 @@ def prepare_sound():
     target=tc/'gen/tc_snd_driver.c'
     if not target.exists() or target.read_bytes()!=generated.read_bytes():shutil.copy2(generated,target)
 
+def package_manifest(bundle_roms):
+    """The OpenXR activity must retain its own VR categories in both variants."""
+    ET.register_namespace('android','http://schemas.android.com/apk/res/android')
+    tree=ET.parse(ROOT/'quest/AndroidManifest.xml');ns='{http://schemas.android.com/apk/res/android}'
+    activities={a.get(ns+'name'):a for a in tree.getroot().find('application').findall('activity')}
+    main=activities['.MainActivity'];setup=activities['.LauncherActivity']
+    categories={c.get(ns+'name') for c in main.findall('intent-filter/category')}
+    assert {'android.intent.category.LAUNCHER','org.khronos.openxr.intent.category.IMMERSIVE_HMD','com.oculus.intent.category.VR'}<=categories
+    if not bundle_roms:
+        # Setup is a separate 2D task. Its handoff targets the VR-marked activity.
+        for intent in main.findall('intent-filter'):
+            for category in list(intent.findall('category')):
+                if category.get(ns+'name')=='android.intent.category.LAUNCHER':intent.remove(category)
+        intent=ET.SubElement(setup,'intent-filter')
+        ET.SubElement(intent,'action',{ns+'name':'android.intent.action.MAIN'})
+        ET.SubElement(intent,'category',{ns+'name':'android.intent.category.LAUNCHER'})
+    output=BUILD/('AndroidManifest-bundled.xml' if bundle_roms else 'AndroidManifest-rom-free.xml')
+    tree.write(output,encoding='utf-8',xml_declaration=True)
+    return output
+
 def package(assets):
     models=assets/'models';models.mkdir(exist_ok=True)
     model=ROOT/'quest/assets/models/player-gun.tcgun'
@@ -63,7 +83,7 @@ def package(assets):
         manifest=[line for line in (assets/'roms.sha256').read_text().splitlines() if line.split('  ',1)[1]!='c71.bin']
         assert len(manifest)==31
         (public/'roms.sha256').write_text('\n'.join(manifest)+'\n',encoding='ascii')
-        run([bt/'aapt2.exe','link','--manifest',ROOT/'quest/AndroidManifest.xml','-I',android,'-A',public,'-o',base])
+        run([bt/'aapt2.exe','link','--manifest',package_manifest(args.bundle_roms),'-I',android,'-A',public,'-o',base])
     strip=ROOT/'.tools/ndk/android-ndk-r27c/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-strip.exe'
     libs=BUILD/'package-libs';libs.mkdir(exist_ok=True)
     for name,source in [('libmain.so',BUILD/'native/libmain.so'),('libSDL2.so',BUILD/'native/sdl/libSDL2.so'),('libopenxr_loader.so',ROOT/'.tools/openxr/prefab/modules/openxr_loader/libs/android.arm64-v8a/libopenxr_loader.so')]:

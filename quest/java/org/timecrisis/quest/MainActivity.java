@@ -8,8 +8,10 @@ public final class MainActivity extends SDLActivity {
     @Override protected String[] getLibraries() { return new String[]{"SDL2", "openxr_loader", "main"}; }
     @Override public void onCreate(Bundle state) {
         try {
+            // The bundled APK launches this VR activity directly, just as the
+            // original working Quest build did. Prepare assets before SDL starts.
             if(!RomInstaller.ready(new File(getFilesDir(),"roms"),RomInstaller.manifest(getAssets().open("roms.sha256"))))
-                throw new IOException("Start through LauncherActivity to import your ROM set");
+                installAssets("roms");
             installAssets("models");
         }
         catch(Exception e) { throw new IllegalStateException("Game asset installation failed", e); }

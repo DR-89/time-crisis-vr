@@ -25,9 +25,12 @@ python tests/test_patches.py
 python tests/test_gun_render.py
 python tests/test_options.py
 python tests/verify_apk.py
+python tests/verify_apk.py --apk artifacts/bundled/TimeCrisisVR-with-ROM.apk
 ```
 
-`verify_apk.py` checks the default ROM-free output, ROM manifest against local build inputs, weapon bytes, ARM64 ELF files, DEX, setup launcher and build hash. Packaging also verifies APK signing and 16 KiB ZIP alignment. Bundled APKs must additionally have their chip contents checked against `assets/roms.sha256`.
+`verify_apk.py` checks either APK variant: ROM hashes (bundled chip bytes or local build inputs), weapon bytes, ARM64 ELF files, DEX and build hash. It also checks the compiled manifest: the complete APK launches `MainActivity` directly, that activity retains both VR categories in every variant, and the optional 2D setup uses a separate task. Packaging verifies APK signing and 16 KiB ZIP alignment.
+
+For launch changes, test opening the app from the Quest library and confirm immersive display in the headset. OpenXR initialization alone does not establish that the app actually opened in VR; the v0.7.1/v0.7.2 launch regression passed that weaker check.
 
 The pure Java importer can be tested without Android:
 

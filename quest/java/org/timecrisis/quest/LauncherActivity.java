@@ -80,7 +80,12 @@ public final class LauncherActivity extends Activity {
                 Log.i("TCVR-ROM", "ROMs verified; starting VR");
                 runOnUiThread(() -> {
                     if (isFinishing() || isDestroyed()) return;
-                    startActivity(new Intent(this, MainActivity.class).addCategory("org.khronos.intent.category.IMMERSIVE_HMD")); finish();
+                    startActivity(new Intent(this, MainActivity.class)
+                        .setAction(Intent.ACTION_MAIN)
+                        .addCategory("org.khronos.openxr.intent.category.IMMERSIVE_HMD")
+                        .addCategory("com.oculus.intent.category.VR")
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                    finish();
                 });
             } catch (Exception e) {
                 Log.w("TCVR-ROM", "Setup: " + e.getMessage());

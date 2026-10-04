@@ -21,5 +21,7 @@ Invoke-Adb shell am force-stop org.timecrisis.quest
 $destination='/sdcard/Android/data/org.timecrisis.quest/files'
 Invoke-Adb shell mkdir -p $destination
 Invoke-Adb push $Rom "$destination/timecris.zip"
-Invoke-Adb shell am start -n org.timecrisis.quest/.LauncherActivity
+$activity=(Invoke-Adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p org.timecrisis.quest | Select-Object -Last 1).Trim()
+if($activity -notmatch '^org\.timecrisis\.quest/\.(MainActivity|LauncherActivity)$'){throw 'Cannot resolve the app launcher.'}
+Invoke-Adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n $activity
 Write-Host 'The app now verifies and imports your own ROM set. No ROM files are downloaded.'

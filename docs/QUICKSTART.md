@@ -4,7 +4,7 @@ A standalone experimental port for **Meta Quest 3**, built on **[spacestate1/nam
 
 ## Install
 
-Download the [release APK](https://github.com/DR-89/time-crisis-vr/releases/latest) and install it with SideQuest or `adb install -r TimeCrisisVR-v0.7.2-quest3.apk`. Open **Unknown sources → Time Crisis VR (Experimental)**. The complete APK prepares its bundled game files automatically; no ZIP selection is needed.
+Download the [release APK](https://github.com/DR-89/time-crisis-vr/releases/latest) and install it with SideQuest or `adb install -r TimeCrisisVR-v0.7.3-quest3.apk`. Open **Unknown sources → Time Crisis VR (Experimental)**. The complete APK prepares its bundled game files automatically; no ZIP selection is needed.
 
 After the arcade startup, press **A right**, wait briefly for three credits, then press the **right trigger** to start.
 

@@ -9,5 +9,7 @@ if($Serial){$targetArgs=@('-s',$Serial)}
 if($LASTEXITCODE -ne 0){throw 'Connect Quest via USB, enable developer mode and accept the USB debugging prompt in the headset.'}
 & $adb @targetArgs install -r $apk
 if($LASTEXITCODE -ne 0){throw 'APK installation failed.'}
-& $adb @targetArgs shell am start -n org.timecrisis.quest/.LauncherActivity
+$activity=(& $adb @targetArgs shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p org.timecrisis.quest | Select-Object -Last 1).Trim()
+if($LASTEXITCODE -ne 0 -or $activity -notmatch '^org\.timecrisis\.quest/\.(MainActivity|LauncherActivity)$'){throw 'Cannot resolve the app launcher.'}
+& $adb @targetArgs shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n $activity
 if($LASTEXITCODE -ne 0){throw 'APK launch failed.'}

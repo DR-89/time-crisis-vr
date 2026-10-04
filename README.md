@@ -12,18 +12,20 @@ A standalone, experimental VR port of **Time Crisis** for **Meta Quest 3**, with
 
 ## Current status
 
-**v0.7.2 — experimental, ARM64, Meta Quest 3.** Gameplay, the player weapon, saved laser settings, menu controls and physical ducking have been tested on a Quest 3. The user confirmed that physical ducking worked well. A complete playthrough and every boss/edge-case hit have not been verified.
+**v0.7.3 — experimental, ARM64, Meta Quest 3.** Gameplay, the player weapon, saved laser settings, menu controls and physical ducking have been tested on a Quest 3. The user confirmed that physical ducking worked well. A complete playthrough and every boss/edge-case hit have not been verified.
+
+**v0.7.3 fixes the small-window launch regression in v0.7.1 and v0.7.2.** The complete APK now starts the immersive game activity directly. Opening in VR was confirmed on Quest 3 after this fix. Update the APK if an older release opens as a flat panel.
 
 The headset is asked to run at **120 Hz**. This is a target, not a guarantee of perfectly stable 120 FPS. See the measured results below.
 
 ## Download and install
 
-1. Download **`TimeCrisisVR-v0.7.2-quest3.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases/latest).
+1. Download **`TimeCrisisVR-v0.7.3-quest3.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases/latest).
 2. Enable developer mode on the Quest, connect it by USB and allow USB debugging.
 3. Install the APK with SideQuest or Android platform-tools:
 
    ```sh
-   adb install -r TimeCrisisVR-v0.7.2-quest3.apk
+   adb install -r TimeCrisisVR-v0.7.3-quest3.apk
    ```
 
 4. Open **Time Crisis VR (Experimental)** from the Quest library's **Unknown sources** section.
@@ -97,7 +99,7 @@ A two-minute active gameplay test of **v0.6.0** on Quest 3, with both controller
 | Mean / p95 runtime CPU + GPU time | 5.21 / 6.84 ms |
 | Per-eye render resolution | 1374 × 1440 |
 
-One-second FPS counters can read slightly above 120 due to sample boundaries. They do not prove that every frame arrived on time. Short hitches remain, particularly on first loading or new textures. New textures may briefly appear coarser while the existing texture budget refines them. These results predate the menu/ducking/import changes and are **not a new benchmark of v0.7.2**. See [performance details](docs/PERFORMANCE.md).
+One-second FPS counters can read slightly above 120 due to sample boundaries. They do not prove that every frame arrived on time. Short hitches remain, particularly on first loading or new textures. New textures may briefly appear coarser while the existing texture budget refines them. These results predate the menu/ducking/import changes and are **not a new benchmark of v0.7.3**. See [performance details](docs/PERFORMANCE.md).
 
 ## Known limitations
 
