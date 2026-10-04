@@ -9,7 +9,7 @@ from pathlib import Path
 import argparse, ctypes as C, os, re, shutil, subprocess
 
 ROOT=Path(__file__).resolve().parents[1]
-p=argparse.ArgumentParser();p.add_argument('--reference',type=Path);p.add_argument('--multiview',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--reference',type=Path);p.add_argument('--multiview',action='store_true');p.add_argument('--srgb',action='store_true',help='Compare a raw sRGB eye target with the original RGBA8 target');a=p.parse_args()
 reference=a.reference.resolve() if a.reference else ROOT/'quest/quest_gl.c';assert reference.is_file()
 out=ROOT/'build/render-test';out.mkdir(parents=True,exist_ok=True)
 vswhere=Path(os.environ['ProgramFiles(x86)'])/'Microsoft Visual Studio/Installer/vswhere.exe'
@@ -38,6 +38,7 @@ for name,source in [('reference',reference),('deferred',ROOT/'quest/quest_gl.c')
     if 'void qgl_scene_begin(' in source.read_text():define+='#define TEST_SCENE_TARGET\n'
     if 'void qgl_atlas_texture(' in source.read_text():define+='#define TEST_ATLAS_ARRAY\n'
     if name=='deferred' and a.multiview:define+='#define TEST_MULTIVIEW\n'
+    if name=='deferred' and a.srgb:define+='#define TEST_SRGB_TARGET\n'
     wrapper.write_text(define+f'#define RENDERER_SOURCE "{source.as_posix()}"\n#include "{(ROOT / "tests/render_fixture.c").as_posix()}"\n')
     run_script([f'cl /nologo /std:c11 /O2 /LD /I"{out / "include"}" /I"{ROOT / "quest/include"}" /I"{ROOT / "quest"}" /I"{ROOT / "upstream/engine"}" "{wrapper}" gles.lib /Fe:{name}.dll'])
 directory=os.add_dll_directory(str(angle));egl=C.WinDLL(str(angle/'libEGL.dll'))
@@ -70,4 +71,4 @@ for variant in range(4):
     assert not differences,f'Eye {variant}: {differences} channel differences'
 assert results['deferred',0]!=results['deferred',1],'Eye transforms produced identical images'
 bind(egl,'eglTerminate',U,P)(display)
-print('PASS: '+('multiview' if a.multiview else 'deferred')+' both eyes, identity and non-identity gamma are byte-identical to reference; no GLES errors.')
+print('PASS: '+('raw sRGB target, ' if a.srgb else '')+('multiview' if a.multiview else 'deferred')+' both eyes, identity and non-identity gamma are byte-identical to reference; no GLES errors.')

@@ -7,7 +7,7 @@
 #include <string.h>
 #include <stdio.h>
 typedef struct { float p[4],c[4],uv[4]; } Vertex;
-static GLuint program,vao,vbo,post_program,post_tex,lut_tex;
+static GLuint program,vao,vbo,post_program,post_tex,post_copy_fb,lut_tex;
 static GLuint atlas_texture,atlas_ids[28];
 static int atlas_dimension,atlas_pages;
 static bool atlas_unavailable;
@@ -313,7 +313,15 @@ void eng_post_lut(const uint8_t lut[3][256],int w,int h){
     }else{
         glBindTexture(GL_TEXTURE_2D,post_tex);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
         if(w!=post_w||h!=post_h){glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,NULL);post_w=w;post_h=h;}
-        glCopyTexSubImage2D(GL_TEXTURE_2D,0,0,0,0,0,w,h);
+        /* GLES rejects CopyTexSubImage from an sRGB eye into an RGBA8
+         * texture. With sRGB writes disabled, blitting preserves the arcade
+         * bytes across these formats without a sampling-time sRGB decode. */
+        if(!post_copy_fb)glGenFramebuffers(1,&post_copy_fb);
+        GLint draw_fb;glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&draw_fb);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER,post_copy_fb);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,post_tex,0);
+        glBlitFramebuffer(0,0,w,h,0,0,w,h,GL_COLOR_BUFFER_BIT,GL_NEAREST);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER,(GLuint)draw_fb);
     }
     glActiveTexture(GL_TEXTURE1);glGetIntegerv(GL_TEXTURE_BINDING_2D,&binding[1]);glBindTexture(GL_TEXTURE_2D,lut_tex);
     if(changed){
@@ -326,6 +334,7 @@ void eng_post_lut(const uint8_t lut[3][256],int w,int h){
     glBindTexture(GL_TEXTURE_2D,binding[1]);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,binding[0]);active=0;
 }
 void qgl_shutdown(void){
+    glDeleteFramebuffers(1,&post_copy_fb);post_copy_fb=0;
     if(multi_active)qgl_stereo_end();
     glDeleteProgram(multi_program);glDeleteProgram(multi_post);glDeleteTextures(1,&multi_texture);glDeleteTextures(1,&multi_lut);glDeleteFramebuffers(1,&multi_fb);
     multi_program=multi_post=multi_texture=multi_fb=multi_lut=0;multi_w=multi_h=0;multi_lut_valid=false;framebuffer_multiview=NULL;

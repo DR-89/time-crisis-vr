@@ -8,6 +8,7 @@
 #include <EGL/egl.h>
 #endif
 #include "quest_gpu.h"
+#include "quest_color.h"
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 #include <SDL2/SDL.h>
@@ -405,12 +406,12 @@ bool ss22_host_open(const ss22_host_game *g,int scale,bool full){
     XrReferenceSpaceCreateInfo rc={XR_TYPE_REFERENCE_SPACE_CREATE_INFO};rc.referenceSpaceType=XR_REFERENCE_SPACE_TYPE_LOCAL;rc.poseInReferenceSpace.orientation.w=1;REQUIRE(xrCreateReferenceSpace(session,&rc,&local_space));
     if(!actions_init())goto fail;
     uint32_t format_count;REQUIRE(xrEnumerateSwapchainFormats(session,0,&format_count,NULL));int64_t *formats=calloc(format_count,sizeof *formats);if(!formats)goto fail;
-    XrResult fmt_result=xrEnumerateSwapchainFormats(session,format_count,&format_count,formats);int64_t color_format=0;
-#ifdef TCVR_PC
-    for(uint32_t i=0;i<format_count;i++)if(formats[i]==GL_SRGB8_ALPHA8)color_format=GL_SRGB8_ALPHA8;
-#endif
-    for(uint32_t i=0;i<format_count;i++)if(formats[i]==GL_RGBA8)color_format=GL_RGBA8;
+    XrResult fmt_result=xrEnumerateSwapchainFormats(session,format_count,&format_count,formats);
+    bool srgb_control=qcolor_srgb_write_control();
+    int64_t color_format=XR_SUCCEEDED(fmt_result)?qcolor_swapchain_format(formats,format_count,srgb_control):0;
     free(formats);if(!XR(fmt_result)||!color_format){fprintf(stderr,"[XR] No supported 8-bit color swapchain\n");goto fail;}
+    qcolor_raw_output(color_format);
+    fprintf(stderr,"[XR] swapchain %s; sRGB write control %s\n",color_format==GL_SRGB8_ALPHA8?"sRGB (raw arcade values)":"RGBA8 (legacy fallback)",srgb_control?"available":"unavailable");
     uint32_t view_count;REQUIRE(xrEnumerateViewConfigurationViews(instance,system,XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,0,&view_count,NULL));if(view_count!=2)goto fail;
     XrViewConfigurationView configs[2]={{XR_TYPE_VIEW_CONFIGURATION_VIEW},{XR_TYPE_VIEW_CONFIGURATION_VIEW}};
     REQUIRE(xrEnumerateViewConfigurationViews(instance,system,XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,2,&view_count,configs));

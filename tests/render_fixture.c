@@ -3,6 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include RENDERER_SOURCE
+#ifdef TEST_SRGB_TARGET
+#include "quest_color.h"
+#endif
+static int fixture_gl_error(const char *stage){
+    GLenum error=glGetError();if(error)fprintf(stderr,"Render fixture %s: GLES error 0x%x\n",stage,error);return error;
+}
 #ifdef IMMEDIATE_REFERENCE
 #define qglBindTexture glBindTexture
 #define qglBlendFunc glBlendFunc
@@ -27,6 +33,17 @@ static void rect(float x,float y,float w,float h){
 __declspec(dllexport) int render_fixture(int variant,int w,int h,uint8_t*out){
     post_w=post_h=0;active=0;texture_on[0]=texture_on[1]=0;
     if(!qgl_init())return 0;
+    GLuint output_fb=0;
+#ifdef TEST_SRGB_TARGET
+    if(!qcolor_srgb_write_control())return -12;
+    GLuint output_tex;glGenTextures(1,&output_tex);glBindTexture(GL_TEXTURE_2D,output_tex);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_SRGB8_ALPHA8,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,NULL);
+    glGenFramebuffers(1,&output_fb);glBindFramebuffer(GL_FRAMEBUFFER,output_fb);
+    glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,output_tex,0);
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER)!=GL_FRAMEBUFFER_COMPLETE)return -13;
+    qcolor_raw_output(GL_SRGB8_ALPHA8);
+    if(fixture_gl_error("sRGB target setup"))return -20;
+#endif
     float view[16],proj[16];view_matrix(view,v3((variant&1)?.06f:0,0,0),(Q4){0,0,0,1});projection(proj,-.65f,.65f,-.65f,.65f);
     uint8_t lut[3][256];for(int i=0;i<256;i++){lut[0][i]=(uint8_t)(i*.8f);lut[1][i]=(uint8_t)i;lut[2][i]=(uint8_t)(255-i);}
     if(variant&2)for(int j=0;j<3;j++)for(int i=0;i<256;i++)lut[j][i]=(uint8_t)i;
@@ -37,7 +54,7 @@ __declspec(dllexport) int render_fixture(int variant,int w,int h,uint8_t*out){
     for(int i=0;i<2;i++){view_matrix(vv[i],v3(i?.06f:0,0,0),(Q4){0,0,0,1});memcpy(pp[i],proj,64);}
     if(!qgl_stereo_begin(vv[0],pp[0],w,h))return -11;
 #endif
-    qgl_target(variant&1,0);qgl_scene_begin(lut,w,h);
+    qgl_target(variant&1,output_fb);qgl_scene_begin(lut,w,h);
 #endif
 #ifndef TEST_MULTIVIEW
     qgl_eye(view,proj);glViewport(0,0,w,h);qglColorMask(1,1,1,1);glClearColor(.07f,.11f,.13f,1);qglClear(GL_COLOR_BUFFER_BIT);
@@ -84,15 +101,22 @@ __declspec(dllexport) int render_fixture(int variant,int w,int h,uint8_t*out){
     qglBindTexture(GL_TEXTURE_2D,tex[1]);qglEnable(GL_TEXTURE_2D);
     qglVertexPointer(4,GL_FLOAT,0,pos);qglColorPointer(4,GL_FLOAT,0,col);qglTexCoordPointer(4,GL_FLOAT,0,texcoord);
     qglDrawArrays(GL_TRIANGLES,0,3);
+    if(fixture_gl_error("scene rendering"))return -21;
     eng_post_lut(lut,w,h);
+    if(fixture_gl_error("scene gamma"))return -22;
 #ifdef TEST_MULTIVIEW
-    qgl_stereo_end();qgl_target(variant&1,0);qgl_eye(view,proj);qgl_stereo_blit(variant&1);
+    qgl_stereo_end();qgl_target(variant&1,output_fb);qgl_eye(view,proj);qgl_stereo_blit(variant&1);
 #endif
     eng_post_lut(lut,w,h); /* Unchanged non-identity LUT must still apply each time. */
+    if(fixture_gl_error("repeated gamma"))return -23;
     for(int j=0;j<3;j++)for(int i=0;i<256;i++)lut[j][i]=(uint8_t)i;
     eng_post_lut(lut,w,h); /* Identity fast path preserves the framebuffer. */
     lut[0][128]=42;eng_post_lut(lut,w,h); /* Return from identity to a changed LUT. */
     qgl_pointer(v3(-.3f,-.2f,-1),v3(.1f,.2f,-2.5f));qgl_flush();
     glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,out);GLenum error=glGetError();int ok=error?-(int)error:1;
-    qglDeleteTextures(2,tex);qglDeleteTextures(1,&overlay);qgl_shutdown();return ok;
+    qglDeleteTextures(2,tex);qglDeleteTextures(1,&overlay);qgl_shutdown();
+#ifdef TEST_SRGB_TARGET
+    glDeleteFramebuffers(1,&output_fb);glDeleteTextures(1,&output_tex);
+#endif
+    return ok;
 }
