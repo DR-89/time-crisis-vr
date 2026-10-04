@@ -4,24 +4,27 @@ A standalone experimental port for **Meta Quest 3**, built on **[spacestate1/nam
 
 ## Install
 
-Download the [release APK](https://github.com/DR-89/time-crisis-vr/releases) and install it with SideQuest or `adb install -r TimeCrisisVR-v0.8.0-quest3.apk`. Open **Unknown sources → Time Crisis VR (Experimental)**. The complete APK prepares its bundled game files automatically; no ZIP selection is needed. For Windows, see [PCVR and desktop setup](PCVR.md).
+Download the [release APK](https://github.com/DR-89/time-crisis-vr/releases) and install it with SideQuest or `adb install -r TimeCrisisVR-v0.8.1-quest3.apk`. Open **Unknown sources → Time Crisis VR (Experimental)**. The complete APK prepares its bundled game files automatically; no ZIP selection is needed. For Windows, see [PCVR and desktop setup](PCVR.md).
 
-After the arcade startup, press **A right**, wait briefly for three credits, then press the **right trigger** to start.
+After the arcade startup, press **A right**, wait briefly for three credits, then press the **right trigger** to start. In left-handed mode, use **X left** and the **left trigger** instead.
 
 ## Controls
 
-| Input | Action |
-| --- | --- |
-| Right controller / trigger | Aim / shoot |
-| A right | Insert three credits |
-| B right | Toggle the laser silently, without a popup |
-| Left menu button | Open options / resume |
-| Y left, in the menu | Switch physical ducking / left-trigger cover |
-| X left | Recenter and set the upright head-height reference |
-| Left trigger, in trigger mode | Hold: leave cover; release: hide/reload |
-| Duck, in physical mode | Hide/reload; sit or stand upright to leave cover |
+| Action | Right-handed (default) | Left-handed |
+| --- | --- | --- |
+| Aim / shoot | Right controller / trigger | Left controller / trigger |
+| Insert three credits | A right | X left |
+| Toggle laser silently | B right | Y left |
+| Open options / resume | Left menu button | Left menu button |
+| Change weapon hand, in options | Right thumbstick click | Right thumbstick click |
+| Change cover mode, in options | Y left | B right |
+| Recenter / calibrate upright height | X left | A right |
+| Hold: leave cover; release: hide/reload | Left trigger | Right trigger |
+| Physical cover: hide/reload; leave cover | Duck; return upright | Duck; return upright |
 
-For physical ducking, select **PHYSICAL DUCKING** in the menu, sit or stand upright and press **X**. Lowering your head by about 20 cm enters cover. Returning to within 12 cm of the reference height leaves cover. Cover mode and laser preference are saved; head height is calibrated for each session.
+To play left-handed, open options with the **left menu button**, then click the **right thumbstick** until **WEAPON HAND: LEFT** appears. The pistol and recoil move to the left controller, and the other controls follow the table above. Resume with the left menu button. Release the new firing trigger once after switching.
+
+For physical ducking, select **PHYSICAL DUCKING** in the menu, sit or stand upright and press **X** (right-handed) or **A** (left-handed). Lowering your head by about 20 cm enters cover. Returning to within 12 cm of the reference height leaves cover. Weapon hand, cover mode and laser preference are saved; head height is calibrated for each session.
 
 Laser assistance starts **on** with new settings. Previously saved choices are retained.
 

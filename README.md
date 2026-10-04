@@ -12,13 +12,21 @@ An experimental VR port of **Time Crisis** for **Meta Quest 3** and **Windows PC
 
 ## Current status
 
-**v0.8.0 — experimental, Quest ARM64 and Windows x64.** Gameplay, the player weapon, saved laser settings, menu controls and physical ducking have been tested on Quest 3. Windows desktop rendering and recorded-gameplay replay have been checked. A Quest 3 connected through Virtual Desktop displayed stereo PCVR at 90 Hz on an RTX 3050 Laptop GPU; the tester confirmed VR and controls worked. A complete playthrough and every boss/edge-case hit have not been verified.
+**v0.8.1 — experimental, Quest ARM64 and Windows x64.** Gameplay, the player weapon, saved laser settings, menu controls and physical ducking have been tested on Quest 3. Windows desktop rendering and recorded-gameplay replay have been checked. A Quest 3 connected through Virtual Desktop displayed stereo PCVR at 90 Hz on an RTX 3050 Laptop GPU; the tester confirmed VR and controls worked. A complete playthrough and every boss/edge-case hit have not been verified.
+
+Changes in v0.8.1:
+
+- Saved left-handed mode for Quest and PCVR: open options with the **left menu button**, then **click the right thumbstick** to change **WEAPON HAND**.
+- The selected hand aims, fires and receives recoil vibration; the other trigger controls cover. Credits, laser, recenter and cover-mode buttons swap with the hand roles. Menu labels show the active layout.
+- Switching hands requires releasing the new firing trigger before shooting. Held buttons cannot accidentally toggle settings after a hand switch or focus loss.
+
+Both layouts pass automated tests of the shared host input code, saved settings and rendered menus. Left-handed play was also tested on Quest 3: the tester confirmed the mode works, including the left pistol, shooting and vibration. A separate PCVR headset test of the new layout is still pending.
 
 Changes in v0.8.0:
 
 - Native Windows OpenXR/OpenGL port, plus a desktop mouse mode.
 - Arcade timing stays independent of compositor half-rate modes such as 45 Hz reprojection.
-- Laser assistance is **on by default**; B still toggles it silently and saved choices are retained.
+- Laser assistance is **on by default**; the weapon-hand upper button toggles it silently and saved choices are retained.
 - Fix for the reproduced Stage 1 explosive-box exit: 318 omitted original instructions are translated at build time. The recorded failing session now passes frame 12,087 and runs through frame 15,000. See the [regression details](docs/CRASH-FIX.md).
 - An infinite far plane prevents distant scenery from being clipped at the former 2 km limit. This addresses distant geometry loss; other missing-texture reports and geometry outside the original arcade camera still need testing.
 - Current and previous session recordings/logs for reproducible bug reports.
@@ -29,16 +37,16 @@ The headset is asked to run at **120 Hz**. This is a target, not a guarantee of 
 
 ## Download and install
 
-1. Download **`TimeCrisisVR-v0.8.0-quest3.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases).
+1. Download **`TimeCrisisVR-v0.8.1-quest3.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases).
 2. Enable developer mode on the Quest, connect it by USB and allow USB debugging.
 3. Install the APK with SideQuest or Android platform-tools:
 
    ```sh
-   adb install -r TimeCrisisVR-v0.8.0-quest3.apk
+   adb install -r TimeCrisisVR-v0.8.1-quest3.apk
    ```
 
 4. Open **Time Crisis VR (Experimental)** from the Quest library's **Unknown sources** section.
-5. After the arcade startup, press **A on the right controller**, wait briefly for the three credits, then press the **right trigger** to start.
+5. After the arcade startup, press **A on the right controller**, wait briefly for the three credits, then press the **right trigger** to start. In left-handed mode, use **X** and the **left trigger** instead.
 
 The bundled release APK includes the supplied Time Crisis ROM set and prepares it automatically on first start. **No separate ZIP selection or ROM import is required for that APK.** First startup can take a little longer while files are verified. Original game content is distinct from the MIT-licensed port code; see [NOTICE.md](NOTICE.md).
 
@@ -46,7 +54,7 @@ Updates installed with `adb install -r` retain your settings and game data. Unin
 
 ### Windows / PCVR
 
-Extract **`TimeCrisisVR-v0.8.0-windows-x64.zip`** to a writable folder. Connect the
+Extract **`TimeCrisisVR-v0.8.1-windows-x64.zip`** to a writable folder. Connect the
 headset through your PC VR software, select an OpenXR runtime with OpenGL support,
 then open **Play VR.cmd**. **Play SteamVR.cmd** selects an installed SteamVR runtime
 for this launch only. **Play Desktop.cmd** starts mouse/keyboard play on a monitor.
@@ -64,33 +72,38 @@ The importer verifies every required chip by SHA-256 and accepts checksum-matchi
 
 ## Controls
 
-| Input | Action |
-| --- | --- |
-| Right controller | Aim the visible 3D pistol |
-| Right trigger | Fire / start / confirm |
-| A, right controller | Insert three credits |
-| B, right controller | Toggle laser aim assistance **silently**, with no popup |
-| Left menu button | Pause and open options / resume |
-| Y, left controller, **while in options** | Switch cover mode |
-| X, left controller | Recenter and set the upright head-height reference |
-| Left trigger, in trigger mode | Hold to leave cover; release to hide and reload |
-| Duck / stand upright, in physical mode | Hide and reload / leave cover |
+| Action | Right-handed (default) | Left-handed |
+| --- | --- | --- |
+| Aim the visible 3D pistol | Right controller | Left controller |
+| Fire / start / confirm | Right trigger | Left trigger |
+| Insert three credits | A right | X left |
+| Toggle laser silently, with no popup | B right | Y left |
+| Pause and open options / resume | Left menu button | Left menu button |
+| Switch weapon hand, **in options** | Right thumbstick click | Right thumbstick click |
+| Switch cover mode, **in options** | Y left | B right |
+| Recenter and set upright head height | X left | A right |
+| Trigger cover: hold to leave cover; release to hide/reload | Left trigger | Right trigger |
+| Physical cover: hide/reload; leave cover | Duck; return upright | Duck; return upright |
+
+**Weapon hand:** open options and click the **right thumbstick** to switch between **LEFT** and **RIGHT**. The setting is saved alongside laser and cover preferences. Existing installations remain right-handed until changed. Hand switching only works while options are open; the left menu button always resumes play.
 
 **Laser:** on by default, saved between sessions. A previous explicit off setting is retained. Turning it off hides only the beam; aiming and shooting still work.
 
-**Cover mode:** left trigger by default. Open the left menu and press **Y** to choose **PHYSICAL DUCKING** or **LEFT TRIGGER**. Both settings are saved together. Y has no mode-switching effect outside the menu. The in-game menu and all documentation use English.
+**Cover mode:** the non-weapon trigger by default. Open the left menu and press **Y** (right-handed) or **B** (left-handed) to switch between **PHYSICAL DUCKING** and trigger cover. Cover mode can only change in options. The in-game menu and all documentation use English.
 
 ### Physical ducking
 
-Choose physical ducking in the menu while upright. Press **X** while standing or sitting upright to calibrate your normal head height, then resume.
+Choose physical ducking in the menu while upright. Press **X** (right-handed) or **A** (left-handed) while standing or sitting upright to calibrate your normal head height, then resume.
 
 - Lowering your head by about **20 cm** enters cover and reloads.
 - Returning to within **12 cm** of your calibrated height leaves cover.
 - The gap between those thresholds prevents rapid switching from small movements.
-- X recalibrates for a different standing/seated position. Height is recalibrated each app session; the selected mode is saved.
-- Missing head tracking releases the virtual pedal. Cover input does not depend on the right controller being visible.
+- The recenter button recalibrates for a different standing/seated position. Height is recalibrated each app session; the selected mode is saved.
+- Missing head tracking releases the virtual pedal. Cover input does not depend on the weapon controller being visible.
 
-![Options menu with physical ducking selected](docs/images/options-english.png)
+![Options menu with left-handed play and physical ducking selected](docs/images/options-english.png)
+
+*Rendered from the actual menu code in the desktop GLES test fixture.*
 
 ## What the port includes
 
@@ -100,7 +113,7 @@ Choose physical ducking in the menu while upright. Press **X** while standing or
 - Tracked, textured player pistol, visual recoil and controller vibration.
 - Original game logic, levels, textures, DSP and sound path supplied by upstream and the ROM set.
 - Geometry-based controller aiming mapped to the original lightgun coordinates.
-- Saved laser and cover preferences, pause, recenter and focus handling.
+- Saved weapon hand, laser and cover preferences, pause, recenter and focus handling.
 - A shared **multiview world pass**, bounded sprite image caching and faster sprite/text rasterization.
 - Original game simulation at approximately **59.906 Hz**, with head and weapon poses updated at the headset refresh rate.
 
@@ -154,7 +167,7 @@ Output:
 - Bundled: `artifacts/bundled/TimeCrisisVR-with-ROM.apk`
 - ROM-free: `artifacts/TimeCrisisVR-quest3-debug.apk`
 - Build metadata and SHA-256: `build-info.json` beside the corresponding APK.
-- Windows: `artifacts/pc/TimeCrisisVR-v0.8.0-windows-x64.zip` and its `.sha256` file.
+- Windows: `artifacts/pc/TimeCrisisVR-v0.8.1-windows-x64.zip` and its `.sha256` file.
 
 The bootstrap downloads pinned NDK r27c, API 34, Build Tools 35.0.0, SDL 2.30.11, OpenXR loader 1.1.43 and Ninja 1.12.1 into `.tools/`. The first build takes several minutes and multiple GB. It does not install a global Android SDK. CMake and the JDK must already be installed.
 
@@ -171,6 +184,7 @@ See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for the complete test and diagnostic w
 ```powershell
 ./Test-Quest.ps1
 python tests/test_options.py
+python tests/test_handedness.py
 python tests/test_rasters.py
 python tests/test_sprite_cache.py
 python tests/test_patches.py

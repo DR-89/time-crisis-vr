@@ -44,14 +44,17 @@ static SDL_GLContext context;
 static bool gpu_ready;
 static XrInstance instance;
 static XrSession session;
-static XrSpace local_space,aim_space;
+enum { LEFT_HAND,RIGHT_HAND,HAND_COUNT };
+static XrPath hand_paths[HAND_COUNT];
+static XrSpace local_space,aim_spaces[HAND_COUNT];
 static XrActionSet action_set;
-static XrAction aim_action,trigger_action,pedal_action,coin_action,recenter_action,pause_action,haptic_action,laser_action,cover_action;
+static XrAction aim_action,trigger_action,lower_action,upper_action,pause_action,haptic_action,hand_action;
 static XrSessionState state;
 static bool running,quit,active,focused,paused,origin_set,recenter_requested;
 static bool multiview;
-static bool coin_was,recenter_was,pause_was;
-static bool laser_was,laser_synced,cover_was,cover_synced,options_saved=true;
+typedef struct ButtonEdge { bool synced,was; } ButtonEdge;
+static ButtonEdge coin_button,recenter_button,pause_button,laser_button,cover_button,hand_button;
+static bool trigger_armed,options_saved=true;
 static QOptions options;
 static QCover cover;
 static bool cover_calibration_pending=true;
@@ -125,32 +128,49 @@ static void frame_profile(uint64_t start,XrDuration period,bool visible){
     }
 }
 static XrPath path(const char *s){XrPath p=0;xrStringToPath(instance,s,&p);return p;}
-static bool action(XrAction *out,const char *name,const char *label,XrActionType type){
+static int weapon_hand(void){return options.left_handed?LEFT_HAND:RIGHT_HAND;}
+static void reset_input_edges(void){
+    coin_button=recenter_button=pause_button=laser_button=cover_button=hand_button=(ButtonEdge){0};
+    trigger_armed=false;
+}
+static void change_weapon_hand(void){
+    if(session&&running){
+        XrHapticActionInfo info={XR_TYPE_HAPTIC_ACTION_INFO};info.action=haptic_action;info.subactionPath=hand_paths[weapon_hand()];
+        xrStopHapticFeedback(session,&info);
+    }
+    options.left_handed=!options.left_handed;options_saved=qoptions_save(options_path,&options);
+    reset_input_edges();recoil_started=0;coin_frames=0;aim_valid=gun_tracked=false;ss22_input_neutral();
+    fprintf(stderr,"[OPTIONS] weapon hand %s; saved %d\n",options.left_handed?"LEFT":"RIGHT",options_saved);
+}
+static bool action(XrAction *out,const char *name,const char *label,XrActionType type,bool both_hands){
     XrActionCreateInfo ci={XR_TYPE_ACTION_CREATE_INFO};ci.actionType=type;
+    if(both_hands){ci.countSubactionPaths=HAND_COUNT;ci.subactionPaths=hand_paths;}
     snprintf(ci.actionName,sizeof ci.actionName,"%s",name);snprintf(ci.localizedActionName,sizeof ci.localizedActionName,"%s",label);
     return XR(xrCreateAction(action_set,&ci,out));
 }
 static bool actions_init(void){
     XrActionSetCreateInfo ci={XR_TYPE_ACTION_SET_CREATE_INFO};strcpy(ci.actionSetName,"time_crisis");strcpy(ci.localizedActionSetName,"Time Crisis");
     if(!XR(xrCreateActionSet(instance,&ci,&action_set)))return false;
-    if(!action(&aim_action,"aim","Gun aim",XR_ACTION_TYPE_POSE_INPUT)||
-       !action(&trigger_action,"fire","Fire",XR_ACTION_TYPE_FLOAT_INPUT)||
-       !action(&pedal_action,"pedal","Hold to leave cover",XR_ACTION_TYPE_FLOAT_INPUT)||
-       !action(&coin_action,"credit","Insert three coins",XR_ACTION_TYPE_BOOLEAN_INPUT)||
-       !action(&recenter_action,"recenter","Recenter",XR_ACTION_TYPE_BOOLEAN_INPUT)||
-       !action(&pause_action,"pause","Pause",XR_ACTION_TYPE_BOOLEAN_INPUT)||
-       !action(&laser_action,"laser","Toggle laser aim assistance",XR_ACTION_TYPE_BOOLEAN_INPUT)||
-       !action(&cover_action,"cover_mode","Change cover control in options",XR_ACTION_TYPE_BOOLEAN_INPUT)||
-       !action(&haptic_action,"recoil","Gun recoil",XR_ACTION_TYPE_VIBRATION_OUTPUT))return false;
+    hand_paths[LEFT_HAND]=path("/user/hand/left");hand_paths[RIGHT_HAND]=path("/user/hand/right");
+    if(!action(&aim_action,"aim","Gun aim",XR_ACTION_TYPE_POSE_INPUT,true)||
+       !action(&trigger_action,"trigger","Fire / hold to leave cover",XR_ACTION_TYPE_FLOAT_INPUT,true)||
+       !action(&lower_action,"lower_button","Add credits / recenter",XR_ACTION_TYPE_BOOLEAN_INPUT,true)||
+       !action(&upper_action,"upper_button","Toggle laser / change cover mode",XR_ACTION_TYPE_BOOLEAN_INPUT,true)||
+       !action(&pause_action,"pause","Pause",XR_ACTION_TYPE_BOOLEAN_INPUT,false)||
+       !action(&hand_action,"weapon_hand","Change weapon hand in options",XR_ACTION_TYPE_BOOLEAN_INPUT,false)||
+       !action(&haptic_action,"recoil","Gun recoil",XR_ACTION_TYPE_VIBRATION_OUTPUT,true))return false;
     XrActionSuggestedBinding bindings[]={
+        {aim_action,path("/user/hand/left/input/aim/pose")},
         {aim_action,path("/user/hand/right/input/aim/pose")},
+        {trigger_action,path("/user/hand/left/input/trigger/value")},
         {trigger_action,path("/user/hand/right/input/trigger/value")},
-        {pedal_action,path("/user/hand/left/input/trigger/value")},
-        {coin_action,path("/user/hand/right/input/a/click")},
-        {recenter_action,path("/user/hand/left/input/x/click")},
+        {lower_action,path("/user/hand/left/input/x/click")},
+        {lower_action,path("/user/hand/right/input/a/click")},
+        {upper_action,path("/user/hand/left/input/y/click")},
+        {upper_action,path("/user/hand/right/input/b/click")},
         {pause_action,path("/user/hand/left/input/menu/click")},
-        {laser_action,path("/user/hand/right/input/b/click")},
-        {cover_action,path("/user/hand/left/input/y/click")},
+        {hand_action,path("/user/hand/right/input/thumbstick/click")},
+        {haptic_action,path("/user/hand/left/output/haptic")},
         {haptic_action,path("/user/hand/right/output/haptic")}};
     XrInteractionProfileSuggestedBinding suggest={XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
     suggest.interactionProfile=path("/interaction_profiles/oculus/touch_controller");suggest.countSuggestedBindings=sizeof(bindings)/sizeof(bindings[0]);suggest.suggestedBindings=bindings;
@@ -158,17 +178,17 @@ static bool actions_init(void){
     XrSessionActionSetsAttachInfo attach={XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO};attach.countActionSets=1;attach.actionSets=&action_set;
     if(!XR(xrAttachSessionActionSets(session,&attach)))return false;
     XrActionSpaceCreateInfo space={XR_TYPE_ACTION_SPACE_CREATE_INFO};space.action=aim_action;space.poseInActionSpace.orientation.w=1;
-    return XR(xrCreateActionSpace(session,&space,&aim_space));
+    for(int i=0;i<HAND_COUNT;i++){space.subactionPath=hand_paths[i];if(!XR(xrCreateActionSpace(session,&space,&aim_spaces[i])))return false;}
+    return true;
 }
-static bool button(XrAction a){XrActionStateGetInfo info={XR_TYPE_ACTION_STATE_GET_INFO};info.action=a;XrActionStateBoolean s={XR_TYPE_ACTION_STATE_BOOLEAN};return XR_SUCCEEDED(xrGetActionStateBoolean(session,&info,&s))&&s.isActive&&s.currentState;}
 /* Fresh edges only: a held button across focus/tracking loss cannot change a setting. */
-static bool pressed(XrAction a,bool *synced,bool *was){
-    XrActionStateGetInfo info={XR_TYPE_ACTION_STATE_GET_INFO};info.action=a;
+static bool pressed(XrAction a,XrPath hand,ButtonEdge *button){
+    XrActionStateGetInfo info={XR_TYPE_ACTION_STATE_GET_INFO};info.action=a;info.subactionPath=hand;
     XrActionStateBoolean s={XR_TYPE_ACTION_STATE_BOOLEAN};
-    if(XR_FAILED(xrGetActionStateBoolean(session,&info,&s))||!s.isActive){*synced=false;return false;}
-    bool edge=*synced&&s.currentState&&!*was;*was=s.currentState;*synced=true;return edge;
+    if(XR_FAILED(xrGetActionStateBoolean(session,&info,&s))||!s.isActive){button->synced=false;return false;}
+    bool edge=button->synced&&s.currentState&&!button->was;button->was=s.currentState;button->synced=true;return edge;
 }
-static float axis(XrAction a){XrActionStateGetInfo info={XR_TYPE_ACTION_STATE_GET_INFO};info.action=a;XrActionStateFloat s={XR_TYPE_ACTION_STATE_FLOAT};return XR_SUCCEEDED(xrGetActionStateFloat(session,&info,&s))&&s.isActive?s.currentState:0;}
+static float axis(XrAction a,XrPath hand){XrActionStateGetInfo info={XR_TYPE_ACTION_STATE_GET_INFO};info.action=a;info.subactionPath=hand;XrActionStateFloat s={XR_TYPE_ACTION_STATE_FLOAT};return XR_SUCCEEDED(xrGetActionStateFloat(session,&info,&s))&&s.isActive?s.currentState:0;}
 static V3 vec(XrVector3f v){return v3(v.x,v.y,v.z);}
 static Q4 quat(XrQuaternionf q){return (Q4){q.x,q.y,q.z,q.w};}
 static V3 relative_position(XrVector3f p){return rotate(conjugate(origin_rotation),sub(vec(p),origin));}
@@ -192,6 +212,7 @@ static bool events(void){
             if(s.key.keysym.sym==SDLK_c)coin_frames=36;
             if(s.key.keysym.sym==SDLK_l){options.laser_enabled=!options.laser_enabled;options_saved=qoptions_save(options_path,&options);}
             if(s.key.keysym.sym==SDLK_r)recenter_requested=true;
+            if(s.key.keysym.sym==SDLK_h&&paused)change_weapon_hand();
         }
 #endif
     }
@@ -207,7 +228,7 @@ static bool events(void){
             if(state==XR_SESSION_STATE_STOPPING){if(running)xrEndSession(session);running=false;game_deadline=0;}
             if(state==XR_SESSION_STATE_EXITING||state==XR_SESSION_STATE_LOSS_PENDING)quit=true;
             bool focus=state==XR_SESSION_STATE_FOCUSED;
-            if(focused!=focus){focused=focus;laser_synced=cover_synced=false;game_deadline=0;ss22_input_neutral();eng_audio_set_volume(focus&&!paused?100:0);}
+            if(focused!=focus){focused=focus;reset_input_edges();game_deadline=0;ss22_input_neutral();eng_audio_set_volume(focus&&!paused?100:0);}
         }else if(e.type==XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING)quit=true;
         else if(e.type==XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING){recenter_requested=true;}
         else if(e.type==XR_TYPE_EVENT_DATA_DISPLAY_REFRESH_RATE_CHANGED_FB){
@@ -224,20 +245,21 @@ static bool events(void){
 }
 static void sync_input(XrTime time,bool head_tracked,float head_y){
     trigger=pedal=0;aim_valid=gun_tracked=false;
-    if(!focused)return;
+    if(!focused){reset_input_edges();return;}
     XrActiveActionSet aset={action_set,XR_NULL_PATH};XrActionsSyncInfo sync={XR_TYPE_ACTIONS_SYNC_INFO};sync.countActiveActionSets=1;sync.activeActionSets=&aset;
-    if(!XR(xrSyncActions(session,&sync))){laser_synced=cover_synced=false;return;}
-    bool coin=button(coin_action),recenter=button(recenter_action),pause=button(pause_action);
-    if(coin&&!coin_was)coin_frames=36;
-    if(recenter&&!recenter_was)recenter_requested=true;
-    if(pause&&!pause_was){paused=!paused;game_deadline=0;eng_audio_set_volume(paused?0:100);ss22_input_neutral();}
-    coin_was=coin;recenter_was=recenter;pause_was=pause;
-    if(pressed(laser_action,&laser_synced,&laser_was)){
+    if(!XR(xrSyncActions(session,&sync))){reset_input_edges();return;}
+    if(pressed(pause_action,XR_NULL_PATH,&pause_button)){paused=!paused;game_deadline=0;eng_audio_set_volume(paused?0:100);ss22_input_neutral();}
+    bool change_hand=pressed(hand_action,XR_NULL_PATH,&hand_button);
+    if(paused&&change_hand){change_weapon_hand();return;}
+    int hand=weapon_hand();XrPath weapon=hand_paths[hand],other=hand_paths[1-hand];
+    if(pressed(lower_action,weapon,&coin_button))coin_frames=36;
+    if(pressed(lower_action,other,&recenter_button))recenter_requested=true;
+    if(pressed(upper_action,weapon,&laser_button)){
         options.laser_enabled=!options.laser_enabled;options_saved=qoptions_save(options_path,&options);
-        /* B changes only the saved setting. Only the menu key opens UI. */
+        /* The weapon-hand upper button toggles the laser silently. */
         fprintf(stderr,"[OPTIONS] laser %s; saved %d\n",options.laser_enabled?"ON":"OFF",options_saved);
     }
-    bool change_cover=pressed(cover_action,&cover_synced,&cover_was);
+    bool change_cover=pressed(upper_action,other,&cover_button);
     if(paused&&change_cover){
         options.physical_crouch=!options.physical_crouch;options_saved=qoptions_save(options_path,&options);
         if(options.physical_crouch)cover_calibration_pending=true;
@@ -248,27 +270,30 @@ static void sync_input(XrTime time,bool head_tracked,float head_y){
         qcover_calibrate(&cover,head_y);cover_calibration_pending=false;
         fprintf(stderr,"[COVER] upright height %.3f m\n",head_y);
     }
-    /* Decking must work even when the right controller is out of view. */
+    /* Cover must work even when the weapon controller is out of view. */
     bool exposed=qcover_pedal(&cover,head_y,head_tracked);
-    if(!paused)pedal=options.physical_crouch?(!cover_calibration_pending&&exposed?1.f:0.f):axis(pedal_action);
-    XrActionStateGetInfo get={XR_TYPE_ACTION_STATE_GET_INFO};get.action=aim_action;
+    if(!paused)pedal=options.physical_crouch?(!cover_calibration_pending&&exposed?1.f:0.f):axis(trigger_action,other);
+    XrActionStateGetInfo get={XR_TYPE_ACTION_STATE_GET_INFO};get.action=aim_action;get.subactionPath=weapon;
     XrActionStatePose pose={XR_TYPE_ACTION_STATE_POSE};
-    if(XR_FAILED(xrGetActionStatePose(session,&get,&pose))||!pose.isActive)return;
+    if(XR_FAILED(xrGetActionStatePose(session,&get,&pose))||!pose.isActive){trigger_armed=false;return;}
     XrSpaceLocation loc={XR_TYPE_SPACE_LOCATION};
     XrSpaceLocationFlags required=XR_SPACE_LOCATION_POSITION_VALID_BIT|XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
-    if(XR_SUCCEEDED(xrLocateSpace(aim_space,local_space,time,&loc))&&(loc.locationFlags&required)==required){
+    if(XR_SUCCEEDED(xrLocateSpace(aim_spaces[hand],local_space,time,&loc))&&(loc.locationFlags&required)==required){
         gun_position=relative_position(loc.pose.position);gun_rotation=relative_rotation(loc.pose.orientation);gun_tracked=true;
         gun_origin=qgun_muzzle(gun_position,gun_rotation);
         V3 dir=rotate(gun_rotation,v3(0,0,-1));
         aim_valid=qvr_aim(gun_origin,dir,&nx,&ny,&gun_hit);
         if(!aim_valid)gun_hit=add(gun_origin,mul(dir,2.5f));
-        if(!paused)trigger=axis(trigger_action);
-    }
+        float fire=axis(trigger_action,weapon);if(fire<.2f)trigger_armed=true;
+        if(!paused&&trigger_armed)trigger=fire;
+    }else trigger_armed=false;
 }
 
+/* Input tests compile the real action and polling code without a window/runtime. */
+#ifndef TCVR_INPUT_TEST
 bool ss22_host_open(const ss22_host_game *g,int scale,bool full){
     (void)scale;(void)full;host=g;
-    qoptions_load(options_path,&options);fprintf(stderr,"[OPTIONS] laser %s; cover %s (menu left: options, Y: cover mode)\n",options.laser_enabled?"ON":"OFF",options.physical_crouch?"PHYSICAL":"TRIGGER");
+    qoptions_load(options_path,&options);fprintf(stderr,"[OPTIONS] laser %s; cover %s; weapon hand %s (left menu: options)\n",options.laser_enabled?"ON":"OFF",options.physical_crouch?"PHYSICAL":"TRIGGER",options.left_handed?"LEFT":"RIGHT");
     if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_EVENTS)!=0)goto fail;
 #ifdef TCVR_PC
     desktop=getenv("TCVR_DESKTOP")!=NULL;qvr_flat_view=desktop&&!getenv("TCVR_SCENE_VIEW");
@@ -441,7 +466,7 @@ static bool desktop_frame(void){
         if((float)w/h>4.f/3.f){p[0]*=(float)vw/w;}else{p[5]*=(float)vh/h;}
         qgl_target(0,0);qgl_eye(v,p);ss22_draw(w,h);qgl_flush();
         if(options.laser_enabled&&aim_valid&&!paused){qgl_pointer(v3(.24f,-.24f,-.45f),v3((nx-.5f)*3.2f,(.5f-ny)*2.4f,-2.5f));qgl_flush();}
-        if(paused)qui_draw(v,p,v3(0,0,0),(Q4){0,0,0,1},options.laser_enabled,options.physical_crouch,options_saved);
+        if(paused)qui_draw(v,p,v3(0,0,0),(Q4){0,0,0,1},options.laser_enabled,options.physical_crouch,options.left_handed,options_saved);
         const char *capture_frame=getenv("TCVR_CAPTURE_FRAME");
         if(capture_frame&&++frame_number==strtoul(capture_frame,NULL,10)){FILE *f=fopen("capture.request","w");if(f)fclose(f);}
         if(!access("capture.request",F_OK)){capture_eye(0,w,h);unlink("capture.request");}
@@ -512,7 +537,7 @@ bool ss22_host_frame(void){
             if(focused&&gun_tracked)qgun_draw(v[i],p[i],gun_position,gun_rotation,recoil);
             if(focused&&paused){
                 V3 head=mul(add(relative_position(views[0].pose.position),relative_position(views[1].pose.position)),.5f);
-                qui_draw(v[i],p[i],head,relative_rotation(views[0].pose.orientation),options.laser_enabled,options.physical_crouch,options_saved);
+                qui_draw(v[i],p[i],head,relative_rotation(views[0].pose.orientation),options.laser_enabled,options.physical_crouch,options.left_handed,options_saved);
             }
             capture_eye(i,eye->w,eye->h);
             parts[3]+=wall_ms()-stage_start;stage_start=wall_ms();
@@ -544,6 +569,7 @@ bool ss22_host_frame(void){
         if(qclock_take(&game_deadline,frame.predictedDisplayTime)){host->input_update();return true;}
     }
 }
+#endif
 void ss22_input_init(const ss22_input_game *g){(void)g;}
 void ss22_input_update(void){
     uint16_t bits=0;
@@ -559,9 +585,11 @@ void ss22_input_close(void){}
 bool ss22_input_aim(float *x,float *y){*x=nx;*y=ny;return aim_valid;}
 void ss22_input_rumble(uint16_t lo,uint16_t hi,uint32_t ms){
     (void)lo;if(!focused||!running)return;XrHapticActionInfo info={XR_TYPE_HAPTIC_ACTION_INFO};info.action=haptic_action;
+    info.subactionPath=hand_paths[weapon_hand()];
     XrHapticVibration vibration={XR_TYPE_HAPTIC_VIBRATION};vibration.duration=(XrDuration)ms*1000000;vibration.frequency=XR_FREQUENCY_UNSPECIFIED;vibration.amplitude=hi/65535.f;
     xrApplyHapticFeedback(session,&info,(XrHapticBaseHeader*)&vibration);
 }
+#ifndef TCVR_INPUT_TEST
 void ss22_out_poll(uint16_t outputs){static uint16_t previous;uint16_t rise=outputs&~previous;previous=outputs;if(rise&2){recoil_started=SDL_GetTicks64();ss22_input_rumble(0,48000,45);}}
 void ss22_out_close(void){}
 bool ss22_host_active(void){return active;}
@@ -573,8 +601,10 @@ void ss22_host_close(void){
     active=false;eng_audio_close();
     if(context&&gpu_ready){qui_shutdown();qgun_shutdown();qgl_shutdown();}
     for(int i=0;i<2;i++){if(context&&gpu_ready&&eyes[i].fb)glDeleteFramebuffers(eyes[i].n,eyes[i].fb);if(context&&gpu_ready)glDeleteRenderbuffers(1,&eyes[i].depth);if(eyes[i].chain)xrDestroySwapchain(eyes[i].chain);free(eyes[i].images);free(eyes[i].fb);memset(&eyes[i],0,sizeof eyes[i]);}
-    if(aim_space)xrDestroySpace(aim_space);if(local_space)xrDestroySpace(local_space);
+    for(int i=0;i<HAND_COUNT;i++){if(aim_spaces[i])xrDestroySpace(aim_spaces[i]);aim_spaces[i]=0;}
+    if(local_space)xrDestroySpace(local_space);
     if(session)xrDestroySession(session);if(action_set)xrDestroyActionSet(action_set);if(instance)xrDestroyInstance(instance);
-    aim_space=local_space=0;session=0;action_set=0;instance=0;running=false;
+    local_space=0;session=0;action_set=0;instance=0;running=false;
     if(context)SDL_GL_DeleteContext(context);context=NULL;gpu_ready=false;if(window)SDL_DestroyWindow(window);window=NULL;SDL_Quit();
 }
+#endif

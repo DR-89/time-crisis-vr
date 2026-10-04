@@ -16,7 +16,8 @@ are shared with the standalone Quest version.
 4. Open **Play VR.cmd**. The headset receives separate stereo views; the PC
    window mirrors the left eye.
 5. Press **A** on the right controller to insert three credits, then the **right
-   trigger** to start.
+   trigger** to start. With left-handed controls selected, use **X left** and the
+   **left trigger** instead.
 
 If SteamVR is installed in a standard Steam library, **Play SteamVR.cmd** selects
 its OpenXR runtime for this launch only. It does not change the Windows default.
@@ -32,20 +33,26 @@ recommendation, capped at 2160 pixels on the longer edge.
 
 ## VR controls
 
-| Input | Action |
-| --- | --- |
-| Right controller / trigger | Aim the 3D pistol / fire |
-| A | Insert three credits |
-| B | Toggle the laser silently |
-| Left menu / keyboard Escape | Pause and open options / resume |
-| Y, while in options | Switch physical ducking / left-trigger cover |
-| X / keyboard R | Recenter and calibrate upright head height |
-| Left trigger, in trigger mode | Hold to leave cover; release to hide/reload |
-| Duck, in physical mode | Hide/reload; return upright to leave cover |
+| Action | Right-handed (default) | Left-handed |
+| --- | --- | --- |
+| Aim the 3D pistol / fire | Right controller / trigger | Left controller / trigger |
+| Insert three credits | A right | X left |
+| Toggle laser silently | B right | Y left |
+| Pause / options / resume | Left menu / keyboard Escape | Left menu / keyboard Escape |
+| Change weapon hand, in options | Right thumbstick click / keyboard H | Right thumbstick click / keyboard H |
+| Change cover mode, in options | Y left | B right |
+| Recenter / calibrate upright height | X left / keyboard R | A right / keyboard R |
+| Trigger cover: hold to leave cover; release to hide/reload | Left trigger | Right trigger |
+| Physical cover: hide/reload; leave cover | Duck; return upright | Duck; return upright |
+
+Open options, then **click the right thumbstick** to change **WEAPON HAND**.
+The pistol, aim and recoil vibration use the selected controller. Weapon hand,
+laser and cover preferences are saved together. After switching hands, release
+the new firing trigger once before shooting. The left menu button always resumes.
 
 The laser is **on by default**. Existing saved choices are retained.
 For physical ducking, choose that mode in options, sit or stand upright, then
-press X. A drop of approximately 20 cm enters cover; returning to within 12 cm
+press **X** (right-handed) or **A** (left-handed). A drop of approximately 20 cm enters cover; returning to within 12 cm
 of the reference leaves cover. Height is calibrated each session.
 
 ## Play on a monitor
@@ -61,6 +68,7 @@ it does not need a headset or an active OpenXR runtime.
 | C | Insert three credits |
 | L | Toggle the laser |
 | Escape | Pause / resume |
+| H, while paused | Change the saved VR weapon hand |
 
 Monitor mode always uses the mouse/keyboard cover input. Physical ducking and
 the tracked 3D pistol are VR features. The original game advances at approximately
@@ -97,3 +105,9 @@ the headset disconnected before a second live PCVR check of that adjustment.
 Short hitches and audio underruns were observed; perfectly stable frame delivery
 has not been established. This remains an experimental build. Other runtimes,
 a complete playthrough and all missing-scene reports remain unverified.
+
+The v0.8.1 left-handed controls pass automated tests against the shared host's
+OpenXR input code, including pose/haptic routing, both cover modes, held-button
+handling and tracking/focus loss. Both menu layouts pass stereo rendering tests.
+The tester confirmed left-handed play on standalone Quest 3. A separate live PCVR
+test of the new layout is still pending.

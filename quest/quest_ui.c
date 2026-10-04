@@ -7,7 +7,7 @@
 #include "quest_ui.h"
 #include "font_data.h"
 
-enum { WIDTH=640,HEIGHT=352 };
+enum { WIDTH=640,HEIGHT=448 };
 static GLuint program,vao,vbo,texture;
 static GLint u_view,u_projection,u_texture;
 static int last_state=-1;
@@ -26,22 +26,25 @@ static void text(int x,int y,const char *s,uint8_t r,uint8_t g,uint8_t b){
         }
     }
 }
-static void panel(bool laser,bool physical_crouch,bool saved){
+static void panel(bool laser,bool physical_crouch,bool left_handed,bool saved){
     for(int y=0;y<HEIGHT;y++)for(int x=0;x<WIDTH;x++){
         uint8_t *p=pixels+(y*WIDTH+x)*4;bool border=x<2||x>=WIDTH-2||y<2||y>=HEIGHT-2;
         p[0]=border?54:12;p[1]=border?183:19;p[2]=border?207:29;p[3]=border?255:240;
     }
     text(24,20,"PAUSE / OPTIONS",181,207,220);
-    text(24,62,"LASER:",255,255,255);text(160,62,laser?"ON":"OFF",laser?94:228,laser?226:235,laser?151:239);
-    text(336,62,"B: ON / OFF",181,207,220);
-    text(24,108,physical_crouch?"COVER: PHYSICAL DUCKING":"COVER: LEFT TRIGGER",255,255,255);
-    text(24,148,"Y LEFT: CHANGE MODE",181,207,220);
-    text(24,194,physical_crouch?"UPRIGHT: OUT / DUCK: COVER":"HOLD: OUT / RELEASE: COVER",255,255,255);
+    text(24,62,left_handed?"WEAPON HAND: LEFT":"WEAPON HAND: RIGHT",255,255,255);
+    text(24,94,"RIGHT STICK CLICK: CHANGE HAND",181,207,220);
+    text(24,138,"LASER:",255,255,255);text(160,138,laser?"ON":"OFF",laser?94:228,laser?226:235,laser?151:239);
+    text(336,138,left_handed?"Y: ON / OFF":"B: ON / OFF",181,207,220);
+    text(24,180,physical_crouch?"COVER: PHYSICAL DUCKING":left_handed?"COVER: RIGHT TRIGGER":"COVER: LEFT TRIGGER",255,255,255);
+    text(24,212,left_handed?"B RIGHT: CHANGE MODE":"Y LEFT: CHANGE MODE",181,207,220);
+    text(24,254,physical_crouch?"UPRIGHT: OUT / DUCK: COVER":"HOLD: OUT / RELEASE: COVER",255,255,255);
     if(physical_crouch){
-        text(24,236,"X LEFT: RESET UPRIGHT HEIGHT",181,207,220);
-        text(24,264,"STAND OR SIT UPRIGHT FIRST",181,207,220);
-    }
-    text(24,314,saved?"LEFT MENU: RESUME":"SAVING FAILED",saved?170:255,saved?193:150,saved?206:150);
+        text(24,286,left_handed?"A RIGHT: RESET UPRIGHT HEIGHT":"X LEFT: RESET UPRIGHT HEIGHT",181,207,220);
+        text(24,314,"STAND OR SIT UPRIGHT FIRST",181,207,220);
+    }else text(24,286,left_handed?"A RIGHT: RECENTER":"X LEFT: RECENTER",181,207,220);
+    text(24,362,left_handed?"X LEFT: ADD CREDITS":"A RIGHT: ADD CREDITS",181,207,220);
+    text(24,406,saved?"LEFT MENU: RESUME":"SAVING FAILED",saved?170:255,saved?193:150,saved?206:150);
 }
 static GLuint shader(GLenum type,const char *source){
     GLuint s=glCreateShader(type);qgpu_shader_source(s,source);glCompileShader(s);GLint ok;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);
@@ -57,19 +60,19 @@ bool qui_init(void){
     glGenVertexArrays(1,&vao);glGenBuffers(1,&vbo);glGenTextures(1,&texture);last_state=-1;
     return true;
 }
-void qui_draw(const float view[16],const float projection[16],V3 head,Q4 rotation,bool laser,bool physical_crouch,bool saved){
+void qui_draw(const float view[16],const float projection[16],V3 head,Q4 rotation,bool laser,bool physical_crouch,bool left_handed,bool saved){
     if(!program)return;
     GLint bound,unit;glGetIntegerv(GL_ACTIVE_TEXTURE,&unit);glActiveTexture(GL_TEXTURE0);glGetIntegerv(GL_TEXTURE_BINDING_2D,&bound);glBindTexture(GL_TEXTURE_2D,texture);
-    int state=(physical_crouch?1:0)|(laser?2:0)|(saved?4:0);
+    int state=(physical_crouch?1:0)|(laser?2:0)|(saved?4:0)|(left_handed?8:0);
     if(last_state!=state){
-        panel(laser,physical_crouch,saved);
+        panel(laser,physical_crouch,left_handed,saved);
         GLint row_length;glGetIntegerv(GL_UNPACK_ROW_LENGTH,&row_length);glPixelStorei(GL_UNPACK_ROW_LENGTH,0);
         glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,WIDTH,HEIGHT,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels);glPixelStorei(GL_UNPACK_ROW_LENGTH,row_length);
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);last_state=state;
     }
     /* One panel 1.6 m from the head, with each eye's real view/projection. */
-    const float xy[4][2]={{-.65f,.3575f},{.65f,.3575f},{.65f,-.3575f},{-.65f,-.3575f}};
+    const float xy[4][2]={{-.65f,.455f},{.65f,.455f},{.65f,-.455f},{-.65f,-.455f}};
     const float uv[4][2]={{0,0},{1,0},{1,1},{0,1}};const int order[6]={0,1,2,0,2,3};float vertices[6][5];
     for(int i=0;i<6;i++){int j=order[i];V3 p=add(head,rotate(rotation,v3(xy[j][0],xy[j][1],-1.6f)));vertices[i][0]=p.x;vertices[i][1]=p.y;vertices[i][2]=p.z;vertices[i][3]=uv[j][0];vertices[i][4]=uv[j][1];}
     glDisable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);glDisable(GL_SCISSOR_TEST);glColorMask(1,1,1,1);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
