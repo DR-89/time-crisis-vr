@@ -12,12 +12,18 @@ An experimental VR port of **Time Crisis** for **Meta Quest** and **Windows PCVR
 
 ## Current status
 
-**Local test build: 0.8.4-angle-test.1.** Adds a saved gun-angle adjustment in
-options, confirmed working on Quest 3. A live Stage 2 test completed without a
-crash. The reported chandelier/stairs crashes are still under investigation;
-see [report collection](docs/STAGE2-REPORTS.md). The latest public release remains v0.8.3.
+**v0.8.4 — experimental, Quest ARM64 and Windows x64.** Adds a saved gun-angle
+adjustment in options, confirmed working on Quest 3. A live Stage 2 test completed
+without a crash. The reported chandelier/stairs crashes have not been reproduced;
+this release does not claim to fix them. See [report collection](docs/STAGE2-REPORTS.md).
+Quest 2 hardware refresh measurements and a new live PCVR check remain pending.
 
-**v0.8.3 — experimental, Quest ARM64 and Windows x64.** Flat sprites, HUD and fallback aiming now use the arcade camera's projection, and shot marks sit on hit surfaces. The tester confirmed that the new test build worked on Quest 3. Quest 2 hardware refresh measurements and a new live PCVR check remain pending.
+Changes in v0.8.4:
+
+- Adjust **GUN ANGLE** from -60 to +60 degrees in 1-degree steps with the right stick while options are open; click the left stick to reset to zero.
+- Negative angles lower the barrel. Model, muzzle, laser and shot direction use the same correction, saved for both hands. Existing settings are retained; the default angle is zero.
+- Windows PCVR also accepts Up/Down and Home in options. Desktop mouse projection is unchanged.
+- A diagnostic helper exports current/previous logs, input recordings and Android exit details to a ZIP. No diagnostics are uploaded automatically.
 
 Changes in v0.8.3:
 
@@ -52,12 +58,12 @@ The headset is asked to run at **120 Hz** when the runtime supports it, with a s
 
 ## Download and install
 
-1. Download **`TimeCrisisVR-v0.8.3-quest.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases).
+1. Download **`TimeCrisisVR-v0.8.4-quest.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases).
 2. Enable developer mode on the Quest, connect it by USB and allow USB debugging.
 3. Install the APK with SideQuest or Android platform-tools:
 
    ```sh
-   adb install -r TimeCrisisVR-v0.8.3-quest.apk
+   adb install -r TimeCrisisVR-v0.8.4-quest.apk
    ```
 
 4. Open **Time Crisis VR (Experimental)** from the Quest library's **Unknown sources** section.
@@ -69,7 +75,7 @@ Updates installed with `adb install -r` retain your settings and game data. Unin
 
 ### Windows / PCVR
 
-Extract **`TimeCrisisVR-v0.8.3-windows-x64.zip`** to a writable folder. Connect the
+Extract **`TimeCrisisVR-v0.8.4-windows-x64.zip`** to a writable folder. Connect the
 headset through your PC VR software, select an OpenXR runtime with OpenGL support,
 then open **Play VR.cmd**. **Play SteamVR.cmd** selects an installed SteamVR runtime
 for this launch only. **Play Desktop.cmd** starts mouse/keyboard play on a monitor.
@@ -108,7 +114,7 @@ The importer verifies every required chip by SHA-256 and accepts checksum-matchi
 
 **Laser:** on by default, saved between sessions. A previous explicit off setting is retained. Turning it off hides only the beam; aiming and shooting still work.
 
-**Gun angle (0.8.4 test build):** open the left menu and move the right stick up
+**Gun angle:** open the left menu and move the right stick up
 or down to adjust pitch in 1-degree steps, from -60 to +60 degrees. Hold the
 stick to repeat. Negative values lower the barrel; if it points about 45 degrees
 too high, try **-45 DEG**. Click the left stick to reset to zero. The setting is
@@ -194,7 +200,7 @@ Output:
 - Bundled: `artifacts/bundled/TimeCrisisVR-with-ROM.apk`
 - ROM-free: `artifacts/TimeCrisisVR-quest3-debug.apk`
 - Build metadata and SHA-256: `build-info.json` beside the corresponding APK.
-- Windows: `artifacts/pc/TimeCrisisVR-v0.8.3-windows-x64.zip` and its `.sha256` file.
+- Windows: `artifacts/pc/TimeCrisisVR-v0.8.4-windows-x64.zip` and its `.sha256` file.
 
 The bootstrap downloads pinned NDK r27c, API 34, Build Tools 35.0.0, SDL 2.30.11, OpenXR loader 1.1.43 and Ninja 1.12.1 into `.tools/`. The first build takes several minutes and multiple GB. It does not install a global Android SDK. CMake and the JDK must already be installed.
 

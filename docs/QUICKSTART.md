@@ -1,8 +1,6 @@
 # Time Crisis VR — Quickstart
 
-**v0.8.3:** corrected sprite/aim alignment and surface-depth shot marks. Cover uses either grip button, both triggers select their controller and fire, and physical ducking remains optional.
-
-**In the local 0.8.4 angle test:** open options with the left menu button, then
+**v0.8.4 adds adjustable gun pitch:** open options with the left menu button, then
 move the right stick up/down to change **GUN ANGLE**. Negative angles lower the
 barrel; try **-45 DEG** for a gun pointing 45 degrees too high. Click the left
 stick to reset. The angle is saved for both hands. Stage 2 crashes remain under
@@ -12,7 +10,7 @@ A standalone experimental port tested on **Meta Quest 3**, with Quest 2 and Ques
 
 ## Install
 
-Download the [release APK](https://github.com/DR-89/time-crisis-vr/releases) and install it with SideQuest or `adb install -r TimeCrisisVR-v0.8.3-quest.apk`. Open **Unknown sources → Time Crisis VR (Experimental)**. The complete APK prepares its bundled game files automatically; no ZIP selection is needed. For Windows, see [PCVR and desktop setup](PCVR.md).
+Download the [release APK](https://github.com/DR-89/time-crisis-vr/releases) and install it with SideQuest or `adb install -r TimeCrisisVR-v0.8.4-quest.apk`. Open **Unknown sources → Time Crisis VR (Experimental)**. The complete APK prepares its bundled game files automatically; no ZIP selection is needed. For Windows, see [PCVR and desktop setup](PCVR.md).
 
 After the arcade startup, press **A right** (or **X left** with DEFAULT HAND set to LEFT), wait briefly for three credits, then press **either trigger** to select that hand and start.
 
@@ -25,6 +23,8 @@ After the arcade startup, press **A right** (or **X left** with DEFAULT HAND set
 | Toggle laser silently | B right | Y left |
 | Open options / resume | Left menu button | Left menu button |
 | Set default hand, in options | Right thumbstick click | Right thumbstick click |
+| Adjust gun angle, in options | Right stick up / down | Right stick up / down |
+| Reset gun angle, in options | Left thumbstick click | Left thumbstick click |
 | Change cover mode, in options | Y left | B right |
 | Recenter / calibrate upright height | X left | A right |
 | Hold: leave cover; release both: hide/reload | Either grip button | Either grip button |

@@ -9,8 +9,8 @@ input recording. They might share a cause, but that has not been established.
 
 The earlier Stage 1 explosive-box crash was traced to missing translated arcade
 instructions and fixed from the original ROM. That diagnosis is not proof of the
-cause of these Stage 2 reports. No Stage 2 fix is claimed by the gun-angle test
-build. The built-in autoplay does not provide a reproduction of these scenes.
+cause of these Stage 2 reports. No Stage 2 fix is claimed by v0.8.4.
+The built-in autoplay does not provide a reproduction of these scenes.
 
 The development Quest's existing session was exported before installing the
 angle test and replayed with reconstructed scene rendering through frame 34,600.
@@ -29,6 +29,8 @@ their cause or imply a mistake by either reporter.
 ## Collect a report
 
 The existing v0.8.3 release already records the arcade inputs needed for replay.
+The diagnostic helper is available as **TimeCrisisVR-v0.8.4-diagnostics.zip** on
+the [v0.8.4 release page](https://github.com/DR-89/time-crisis-vr/releases/tag/v0.8.4).
 After a crash, leave the app closed and keep it installed. Connect the Quest to a
 Windows PC with Android platform-tools, then allow USB debugging in the headset.
 Run this script from the source checkout or the supplied diagnostic helper:

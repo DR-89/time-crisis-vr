@@ -1,15 +1,15 @@
 # Time Crisis VR for Windows
 
-**Local 0.8.4-angle-test.1 build:** saved gun pitch from -60 to +60 degrees,
-adjustable in options. This is not a published release or a confirmed Stage 2
-crash fix. The reports in [issue #3](https://github.com/DR-89/time-crisis-vr/issues/3)
-still need game logs and input recordings; collection instructions are in
-`docs/STAGE2-REPORTS.md` in the source tree.
+**v0.8.4:** saved gun pitch from -60 to +60 degrees, adjustable in options.
+The corresponding Quest 3 test build was confirmed working. The reports in
+[issue #3](https://github.com/DR-89/time-crisis-vr/issues/3) still need failing
+session recordings; this release does not claim to fix those Stage 2 crashes.
+See [report collection](https://github.com/DR-89/time-crisis-vr/blob/v0.8.4/docs/STAGE2-REPORTS.md).
 
 **v0.8.3:** this build aligns flat layers and fallback
 aiming with the arcade camera, and places shot marks on hit surfaces. The normal
 monitor projection stays unchanged. See the [projection validation](https://github.com/DR-89/time-crisis-vr/blob/v0.8.3/docs/AIM-PROJECTION.md)
-for evidence and limitations. The controls below are unchanged from v0.8.2.
+for evidence and limitations. Gun-angle controls were added in v0.8.4.
 
 **v0.8.2:** cover now uses either grip button. Both triggers select their controller and fire. Physical ducking remains optional.
 
@@ -148,3 +148,12 @@ pixel, both multiview eyes match the single-view reference, and the recorded
 Stage 1 session renders through 15,000 frames without CPU traps. Normal desktop
 mouse projection and controls are preserved. These checks do not establish a
 particular headset frame rate or replace the pending live PCVR comparison.
+
+For v0.8.4, shared-host tests verify corrected model/muzzle/aim alignment in both
+hands, controller-relative pitch, saved settings, input repeat/reset and focus
+loss. Twelve GLES menu views and 56 saved option/angle combinations pass. The
+release uses the same native code as the confirmed Quest 3 angle test; the final
+Windows package passes clean extraction, hashes and 601 desktop simulation
+frames. A recorded Quest session also renders through 34,600 frames with no CPU
+traps or reported graphics/DSP/sound faults, including a Stage 2 Clear screen.
+A new live PCVR check of these changes remains pending.
