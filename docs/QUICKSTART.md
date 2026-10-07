@@ -2,6 +2,12 @@
 
 **v0.8.3:** corrected sprite/aim alignment and surface-depth shot marks. Cover uses either grip button, both triggers select their controller and fire, and physical ducking remains optional.
 
+**In the local 0.8.4 angle test:** open options with the left menu button, then
+move the right stick up/down to change **GUN ANGLE**. Negative angles lower the
+barrel; try **-45 DEG** for a gun pointing 45 degrees too high. Click the left
+stick to reset. The angle is saved for both hands. Stage 2 crashes remain under
+investigation; see [diagnostic collection](STAGE2-REPORTS.md).
+
 A standalone experimental port tested on **Meta Quest 3**, with Quest 2 and Quest 3S declared in the APK, built on **[spacestate1/namco22-decompile](https://github.com/spacestate1/namco22-decompile)**. Quest 2 refresh-rate measurements remain pending. See the [README](../README.md) for full documentation.
 
 ## Install

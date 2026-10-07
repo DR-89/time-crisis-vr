@@ -74,6 +74,9 @@ A private `files/refresh-rate.txt` can request another supported refresh rate on
 
 `Export-Quest-Diagnostics.ps1` copies current and previous logs/input recordings,
 saved options and Android exit details into a local ignored artifact directory.
+It also creates a ZIP for sharing, selects a Quest automatically when exactly
+one is connected, and accepts `-Adb` and `-Serial` overrides. Missing optional
+files are listed in the report. See [Stage 2 report collection](STAGE2-REPORTS.md).
 Input recordings preserve the starting EEPROM and arcade controls. They do not
 record video, audio or headset poses. Windows writes equivalent recordings beside
 the executable. Replays preserve those session files. See [the explosive-box

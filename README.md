@@ -12,6 +12,10 @@ An experimental VR port of **Time Crisis** for **Meta Quest** and **Windows PCVR
 
 ## Current status
 
+**Local test build: 0.8.4-angle-test.1.** Adds a saved gun-angle adjustment in
+options. Stage 2 chandelier/stairs crash reports are still under investigation;
+see [report collection](docs/STAGE2-REPORTS.md). The latest public release remains v0.8.3.
+
 **v0.8.3 — experimental, Quest ARM64 and Windows x64.** Flat sprites, HUD and fallback aiming now use the arcade camera's projection, and shot marks sit on hit surfaces. The tester confirmed that the new test build worked on Quest 3. Quest 2 hardware refresh measurements and a new live PCVR check remain pending.
 
 Changes in v0.8.3:
@@ -90,6 +94,8 @@ The importer verifies every required chip by SHA-256 and accepts checksum-matchi
 | Toggle laser silently, with no popup | B right | Y left |
 | Pause and open options / resume | Left menu button | Left menu button |
 | Set default hand, **in options** | Right thumbstick click | Right thumbstick click |
+| Adjust gun angle, **in options** | Right stick up / down | Right stick up / down |
+| Reset gun angle, **in options** | Left thumbstick click | Left thumbstick click |
 | Switch cover mode, **in options** | Y left | B right |
 | Recenter and set upright head height | X left | A right |
 | Grip cover: hold to leave cover; release both to hide/reload | Either grip button | Either grip button |
@@ -100,6 +106,14 @@ The importer verifies every required chip by SHA-256 and accepts checksum-matchi
 **Default hand and buttons:** open options and click the **right thumbstick** to change **DEFAULT HAND**. This saved preference determines the starting hand and the face-button layout in the table. Automatic trigger handoffs leave that layout unchanged. The left menu button always resumes play.
 
 **Laser:** on by default, saved between sessions. A previous explicit off setting is retained. Turning it off hides only the beam; aiming and shooting still work.
+
+**Gun angle (0.8.4 test build):** open the left menu and move the right stick up
+or down to adjust pitch in 1-degree steps, from -60 to +60 degrees. Hold the
+stick to repeat. Negative values lower the barrel; if it points about 45 degrees
+too high, try **-45 DEG**. Click the left stick to reset to zero. The setting is
+saved and applies to both hands, rotating the model, muzzle, laser and shot
+direction together. Zero preserves the original runtime aim pose. Recenter and
+automatic hand switching retain your angle.
 
 **Cover mode:** either grip button by default. Hold at least one to leave cover; release both to hide and reload. Open the left menu and press **Y** (right default hand) or **B** (left default hand) to switch between **PHYSICAL DUCKING** and **GRIP BUTTONS**. Cover mode can only change in options. The in-game menu and all documentation use English.
 
@@ -113,7 +127,7 @@ Choose physical ducking in the menu while upright. Press **X** (right-handed) or
 - The recenter button recalibrates for a different standing/seated position. Height is recalibrated each app session; the selected mode is saved.
 - Missing head tracking releases the virtual pedal. Cover input does not depend on the weapon controller being visible.
 
-![Options with left default hand and grip cover](docs/images/options-english.png)
+![Options with left default hand, -45 degree gun angle and grip cover](docs/images/options-english.png)
 
 *Rendered from the actual menu code in the desktop GLES test fixture.*
 

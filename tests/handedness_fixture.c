@@ -6,9 +6,12 @@
 
 static char paths[40][100];
 static unsigned path_count,action_count,space_count,binding_count;
-static XrActionSuggestedBinding suggested[16];
-static XrActionType types[10];
-static bool dual[10],buttons[10][3],connected[2]={true,true},tracked[2]={true,true};
+static XrActionSuggestedBinding suggested[20];
+static XrActionType types[16];
+static bool dual[16],buttons[16][3],connected[2]={true,true},tracked[2]={true,true};
+static float stick_y;
+static bool stick_active=true;
+static Q4 controller_rotation={0,0,0,1};
 static float triggers[2],grips[2];
 static XrTime trigger_times[2];
 static bool trigger_active[2]={true,true};
@@ -38,7 +41,7 @@ XRAPI_ATTR XrResult XRAPI_CALL xrCreateActionSet(XrInstance i,const XrActionSetC
     (void)i;(void)c;*out=(XrActionSet)(uintptr_t)1;return XR_SUCCESS;
 }
 XRAPI_ATTR XrResult XRAPI_CALL xrCreateAction(XrActionSet set,const XrActionCreateInfo *c,XrAction *out){
-    (void)set;unsigned n=++action_count;assert(n<10);types[n]=c->actionType;
+    (void)set;unsigned n=++action_count;assert(n<16);types[n]=c->actionType;
     dual[n]=c->countSubactionPaths==2;
     if(dual[n]){assert(c->subactionPaths[0]==hand_paths[0]);assert(c->subactionPaths[1]==hand_paths[1]);}
     else assert(c->countSubactionPaths==0);
@@ -46,7 +49,7 @@ XRAPI_ATTR XrResult XRAPI_CALL xrCreateAction(XrActionSet set,const XrActionCrea
 }
 XRAPI_ATTR XrResult XRAPI_CALL xrSuggestInteractionProfileBindings(XrInstance i,const XrInteractionProfileSuggestedBinding *s){
     (void)i;assert(!strcmp(paths[s->interactionProfile],"/interaction_profiles/oculus/touch_controller"));
-    binding_count=s->countSuggestedBindings;assert(binding_count<=16);
+    binding_count=s->countSuggestedBindings;assert(binding_count<=20);
     memcpy(suggested,s->suggestedBindings,binding_count*sizeof suggested[0]);return XR_SUCCESS;
 }
 XRAPI_ATTR XrResult XRAPI_CALL xrAttachSessionActionSets(XrSession s,const XrSessionActionSetsAttachInfo *a){
@@ -74,10 +77,15 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStatePose(XrSession s,const XrActionSt
     (void)s;assert(get->action==aim_action&&dual[id(get->action)]);int h=hand_index(get->subactionPath);assert(h<2);
     out->isActive=connected[h];return XR_SUCCESS;
 }
+XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateVector2f(XrSession s,const XrActionStateGetInfo *get,XrActionStateVector2f *out){
+    (void)s;assert(get->action==pitch_action&&get->subactionPath==XR_NULL_PATH);
+    assert(types[id(get->action)]==XR_ACTION_TYPE_VECTOR2F_INPUT);
+    out->isActive=stick_active&&connected[RIGHT_HAND];out->currentState=(XrVector2f){0,stick_y};return XR_SUCCESS;
+}
 XRAPI_ATTR XrResult XRAPI_CALL xrLocateSpace(XrSpace space,XrSpace base,XrTime t,XrSpaceLocation *out){
     (void)base;(void)t;int h=(int)(uintptr_t)space-1;assert(h==0||h==1);
     out->locationFlags=tracked[h]?XR_SPACE_LOCATION_POSITION_VALID_BIT|XR_SPACE_LOCATION_ORIENTATION_VALID_BIT:0;
-    out->pose=(XrPosef){{0,0,0,1},{h==LEFT_HAND?-.25f:.25f,1.4f,-.5f}};return XR_SUCCESS;
+    out->pose=(XrPosef){{controller_rotation.x,controller_rotation.y,controller_rotation.z,controller_rotation.w},{h==LEFT_HAND?-.25f:.25f,1.4f,-.5f}};return XR_SUCCESS;
 }
 XRAPI_ATTR XrResult XRAPI_CALL xrApplyHapticFeedback(XrSession s,const XrHapticActionInfo *info,const XrHapticBaseHeader *v){
     (void)s;(void)v;assert(info->action==haptic_action&&dual[id(info->action)]);
@@ -110,7 +118,7 @@ int main(void){
     get_rate=NULL;request_rate=NULL;
     options_path="handedness-test.cfg";qoptions_load(options_path,&options);
     assert(!options.left_handed);instance=(XrInstance)(uintptr_t)1;session=(XrSession)(uintptr_t)1;
-    running=focused=origin_set=true;assert(actions_init());assert(space_count==2&&binding_count==14);
+    running=focused=origin_set=true;assert(actions_init());assert(space_count==2&&binding_count==16);
     for(int h=0;h<2;h++){
         char name[100];const char *prefix=h?"/user/hand/right":"/user/hand/left";
         snprintf(name,sizeof name,"%s/input/aim/pose",prefix);bound(aim_action,name);
@@ -190,6 +198,35 @@ int main(void){
     click(lower_action,LEFT_HAND);assert(recenter_requested);
     click(upper_action,RIGHT_HAND);assert(options.laser_enabled!=laser);
     click(upper_action,LEFT_HAND);assert(options.physical_crouch!=physical);
-    puts("PASS: real host bindings, either-grip cover, fresh-trigger handoffs, arcade fire edges, short taps, stable face buttons, saved default, haptics, physical cover, focus/action/tracking loss");
+    /* Angle only changes in options, after a neutral stick, at a bounded rate. */
+    bound(pitch_action,"/user/hand/right/input/thumbstick");bound(pitch_reset_action,"/user/hand/left/input/thumbstick/click");
+    assert(paused&&options.gun_pitch==0);stick_y=-1;sync_input(1000,true,1.7f);assert(options.gun_pitch==-1);
+    sync_input(399999999,true,1.7f);assert(options.gun_pitch==-1);
+    sync_input(400001000,true,1.7f);assert(options.gun_pitch==-2);
+    sync_input(500001000,true,1.7f);assert(options.gun_pitch==-3);
+    stick_y=0;tick();stick_y=1;tick();assert(options.gun_pitch==-2);
+    stick_active=false;tick();stick_active=true;tick();assert(options.gun_pitch==-2);
+    stick_y=0;tick();stick_y=1;tick();assert(options.gun_pitch==-1);
+    focused=false;tick();focused=true;tick();assert(options.gun_pitch==-1);
+    stick_y=NAN;tick();assert(options.gun_pitch==-1);
+    click(pitch_reset_action,2);assert(options.gun_pitch==0);
+    stick_y=0;tick();set_gun_pitch(100);assert(options.gun_pitch==60);set_gun_pitch(-100);assert(options.gun_pitch==-60);
+    set_gun_pitch(-45);qoptions_load(options_path,&saved);assert(saved.gun_pitch==-45);
+    click(pause_action,2);assert(!paused);stick_y=1;tick();click(pitch_reset_action,2);assert(options.gun_pitch==-45);
+    click(pause_action,2);assert(paused);tick();assert(options.gun_pitch==-45); /* Held across menu open. */
+    /* A controller pitched 45 degrees up becomes level at -45 in BOTH hands.
+     * Muzzle and target use precisely the same corrected pose as the model. */
+    controller_rotation=(Q4){sinf(3.14159265f/8),0,0,cosf(3.14159265f/8)};
+    for(int h=0;h<2;h++){
+        select_weapon_hand(h);tick();V3 direction=rotate(gun_rotation,v3(0,0,-1));
+        assert(fabsf(direction.y)<1e-6f&&fabsf(direction.z+1)<1e-6f);
+        assert(fabsf(gun_origin.y-gun_position.y)<1e-6f&&fabsf(gun_origin.z-gun_position.z+.1f)<1e-6f);
+        assert(fabsf(gun_hit.y-gun_origin.y)<1e-6f&&fabsf(gun_hit.z-gun_origin.z+2)<1e-6f);
+    }
+    /* Apply pitch in controller space after yaw, not around the world's X axis. */
+    controller_rotation=product((Q4){0,sinf(.6f),0,cosf(.6f)},controller_rotation);tick();
+    V3 forward=rotate(gun_rotation,v3(0,0,-1));assert(fabsf(forward.y)<1e-6f&&fabsf(forward.x+sinf(1.2f))<1e-6f);
+    controller_rotation=(Q4){0,0,0,1};click(pitch_reset_action,2);tick();assert(options.gun_pitch==0&&gun_rotation.w==1);
+    puts("PASS: real host controls, gun pitch persistence/bounds/repeat/reset, model/muzzle/aim alignment in both hands, local-space correction, focus/action loss and existing input regressions");
     return 0;
 }

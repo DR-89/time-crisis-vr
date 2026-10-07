@@ -1,5 +1,11 @@
 # Time Crisis VR for Windows
 
+**Local 0.8.4-angle-test.1 build:** saved gun pitch from -60 to +60 degrees,
+adjustable in options. This is not a published release or a confirmed Stage 2
+crash fix. The reports in [issue #3](https://github.com/DR-89/time-crisis-vr/issues/3)
+still need game logs and input recordings; collection instructions are in
+`docs/STAGE2-REPORTS.md` in the source tree.
+
 **v0.8.3:** this build aligns flat layers and fallback
 aiming with the arcade camera, and places shot marks on hit surfaces. The normal
 monitor projection stays unchanged. See the [projection validation](https://github.com/DR-89/time-crisis-vr/blob/v0.8.3/docs/AIM-PROJECTION.md)
@@ -46,6 +52,8 @@ recommendation, capped at 2160 pixels on the longer edge.
 | Toggle laser silently | B right | Y left |
 | Pause / options / resume | Left menu / keyboard Escape | Left menu / keyboard Escape |
 | Set default hand, in options | Right thumbstick click / keyboard H | Right thumbstick click / keyboard H |
+| Adjust gun angle, in options | Right stick up/down / keyboard Up/Down | Right stick up/down / keyboard Up/Down |
+| Reset gun angle, in options | Left thumbstick click / keyboard Home | Left thumbstick click / keyboard Home |
 | Change cover mode, in options | Y left | B right |
 | Recenter / calibrate upright height | X left / keyboard R | A right / keyboard R |
 | Grip cover: hold to leave cover; release both to hide/reload | Either grip button | Either grip button |
@@ -62,6 +70,10 @@ Held triggers cannot repeatedly switch hands. Release a trigger after tracking o
 focus loss before firing again. The left menu button always resumes.
 
 The laser is **on by default**. Existing saved choices are retained.
+Gun angle is saved for both hands. Negative values lower the barrel; try -45
+degrees if the gun points 45 degrees too high. Model, muzzle, laser and shot
+direction use the same correction. This affects tracked VR aiming; desktop mouse
+coordinates remain unchanged. Resetting the angle does not reset other options.
 For physical ducking, choose that mode in options, sit or stand upright, then
 press **X** (right-handed) or **A** (left-handed). A drop of approximately 20 cm enters cover; returning to within 12 cm
 of the reference leaves cover. Height is calibrated each session.
