@@ -2,16 +2,17 @@
 #include <GL/gl.h>
 #include "quest_gl.h"
 #include "post_gl.h"
-#include <android/log.h>
+#include "quest_log.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 typedef struct { float p[4],c[4],uv[4]; } Vertex;
-static GLuint program,vao,vbo,post_program,post_tex,lut_tex;
+static GLuint program,vao,vbo,post_program,post_tex,post_copy_fb,lut_tex;
 static GLuint atlas_texture,atlas_ids[28];
 static int atlas_dimension,atlas_pages;
 static bool atlas_unavailable;
-enum { U_VIEW,U_PROJ,U_TEX,U_TEXTURED,U_ALPHA,U_FOG,U_REPLACE,U_SCALE,U_THRESHOLD,U_FOG_COLOR,U_COUNT };
+enum { U_VIEW,U_PROJ,U_TEX,U_TEXTURED,U_ALPHA,U_FOG,U_REPLACE,U_SCALE,U_THRESHOLD,U_FOG_COLOR,U_FLAT_CAMERA,U_COUNT };
+static float flat_camera[4]={320,240,.005f,2.5f};
 static GLint uniforms[U_COUNT],post_screen,post_lut;
 static GLuint mono_program,multi_program,multi_post,multi_texture,multi_fb,multi_lut;
 static GLint mono_uniforms[U_COUNT],multi_uniforms[U_COUNT];
@@ -22,10 +23,10 @@ static uint8_t multi_gamma_table[3][256],multi_uploaded_lut[3][256];
 typedef void (GL_APIENTRY *MultiviewProc)(GLenum,GLenum,GLuint,GLint,GLint,GLsizei);
 static MultiviewProc framebuffer_multiview;
 static const char *world_vertex=
-    "#version 300 es\nprecision highp float;layout(location=0) in vec4 aPos;layout(location=1) in vec4 aColor;layout(location=2) in vec4 aUV;uniform mat4 view[2],proj[2];\n#ifdef QGL_MULTIVIEW\nlayout(num_views=2) in;\n#define EYE gl_ViewID_OVR\n#else\n#define EYE 0\n#endif\nout vec4 c;out vec3 uv;flat out float layer;void main(){vec3 p;if(aPos.w>0.5){p=aPos.xyz;uv=vec3(aUV.xy/max(aUV.w,1e-12),1);}else{p=vec3((aPos.x-320.0)*0.005,(240.0-aPos.y)*0.005,-2.5);uv=vec3(aUV.xy,aUV.w);}gl_Position=proj[EYE]*view[EYE]*vec4(p,1);c=aColor;layer=aUV.z;}";
+    "#version 300 es\nprecision highp float;layout(location=0) in vec4 aPos;layout(location=1) in vec4 aColor;layout(location=2) in vec4 aUV;uniform mat4 view[2],proj[2];uniform vec4 flatCam;\n#ifdef QGL_MULTIVIEW\nlayout(num_views=2) in;\n#define EYE gl_ViewID_OVR\n#else\n#define EYE 0\n#endif\nout vec4 c;out vec3 uv;flat out float layer;void main(){vec3 p;if(aPos.w>0.5){p=aPos.xyz;uv=vec3(aUV.xy/max(aUV.w,1e-12),1);}else{p=vec3((aPos.x-flatCam.x)*flatCam.z,(flatCam.y-aPos.y)*flatCam.z,-flatCam.w);uv=vec3(aUV.xy,aUV.w);}gl_Position=proj[EYE]*view[EYE]*vec4(p,1);c=aColor;layer=aUV.z;}";
 static const char *world_fragment=
     "#version 300 es\nprecision highp float;in vec4 c;in vec3 uv;flat in float layer;uniform sampler2D tex;uniform highp sampler2DArray atlasTex;uniform int textured,alphaTest,fog,replaceAlpha;uniform float scale,threshold;uniform vec3 fogColor;out vec4 frag;void main(){vec2 st=uv.xy/max(uv.z,1e-12);vec4 t=textured==2?texture(atlasTex,vec3(st,layer)):(textured!=0?texture(tex,st):vec4(1));vec4 v=t*c;v.rgb*=textured!=0?scale:1.0;if(replaceAlpha!=0)v.a=t.a;if(fog!=0){v.rgb=mix(fogColor,v.rgb,c.a);v.a=t.a;}if(alphaTest!=0&&v.a<=threshold)discard;frag=v;}";
-static const char *uniform_names[]={"view","proj","tex","textured","alphaTest","fog","replaceAlpha","scale","threshold","fogColor"};
+static const char *uniform_names[]={"view","proj","tex","textured","alphaTest","fog","replaceAlpha","scale","threshold","fogColor","flatCam"};
 /* Upload each ordered group before any draw reads its vertex buffer. Updating a
  * shared buffer between draws serializes the Adreno driver. Texture writes are
  * barriers because the original atlas and sprite texture can be reused. */
@@ -33,8 +34,8 @@ typedef struct {
     GLuint texture;GLenum mode,src,dst;
     int textured,alpha,fog,replace,blend;
     GLboolean mask[4];float scale,threshold,fog_color[3];
-} DrawState;
-typedef struct { DrawState state;int first,count; } Command;
+} QDrawState;
+typedef struct { QDrawState state;int first,count; } Command;
 static Command *commands;static size_t command_count,command_capacity;
 static Vertex *stream;static size_t stream_count,stream_capacity;
 static GLuint bindings[2];static int blend_on;
@@ -54,7 +55,7 @@ static int active,texture_on[2],alpha_on,alpha_replace,im_count;
 static float rgb_scale=1,alpha_ref=.1f,fog_color[3],color[4]={1,1,1,1},uv[4]={0,0,0,1};
 static Vertex immediate[4096];static GLenum im_mode;
 static GLuint shader(GLenum type,const char *source) {
-    GLuint s=glCreateShader(type);glShaderSource(s,1,&source,NULL);glCompileShader(s);
+    GLuint s=glCreateShader(type);qgpu_shader_source(s,source);glCompileShader(s);
     GLint ok;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);
     if(!ok){char msg[4096];glGetShaderInfoLog(s,sizeof msg,NULL,msg);__android_log_print(ANDROID_LOG_ERROR,"TCVR","Shader: %s",msg);glDeleteShader(s);return 0;}return s;
 }
@@ -196,14 +197,21 @@ void qgl_scene_begin(const uint8_t lut[3][256],int w,int h){
     }
     glBindFramebuffer(GL_FRAMEBUFFER,scene_targets[i].framebuffer);scene_active=true;
 }
+void qgl_flat_camera(float cx,float cy,float focal){
+    if(!isfinite(cx)||!isfinite(cy)||!isfinite(focal)||focal<=0)return;
+    float next[4]={cx,cy,2.5f/focal,2.5f};
+    if(!memcmp(next,flat_camera,sizeof next))return;
+    qgl_flush();memcpy(flat_camera,next,sizeof next);
+}
 void qgl_flush(void){
     if(!command_count)return;
     glUseProgram(program);glBindVertexArray(vao);glBindBuffer(GL_ARRAY_BUFFER,vbo);
+    glUniform4fv(uniforms[U_FLAT_CAMERA],1,flat_camera);
     glBufferData(GL_ARRAY_BUFFER,(GLsizeiptr)stream_count*sizeof(Vertex),stream,GL_STREAM_DRAW);
     for(int i=0;i<3;i++)glVertexAttribPointer(i,4,GL_FLOAT,GL_FALSE,sizeof(Vertex),(void*)(size_t)(i*16));
     glActiveTexture(GL_TEXTURE0);
     for(size_t i=0;i<command_count;i++){
-        const Command *cmd=&commands[i];const DrawState *s=&cmd->state,*prev=i?&commands[i-1].state:NULL;
+        const Command *cmd=&commands[i];const QDrawState *s=&cmd->state,*prev=i?&commands[i-1].state:NULL;
         if(!prev||s->texture!=prev->texture)glBindTexture(GL_TEXTURE_2D,s->texture);
         if(!prev||s->blend!=prev->blend){if(s->blend)glEnable(GL_BLEND);else glDisable(GL_BLEND);}
         if(!prev||s->src!=prev->src||s->dst!=prev->dst)glBlendFunc(s->src,s->dst);
@@ -225,7 +233,7 @@ static void draw(const Vertex *v,int n,GLenum mode) {
     if(stream_count+(size_t)n>stream_capacity){
         size_t cap=(stream_count+n)*2;void*p=realloc(stream,cap*sizeof(Vertex));if(!p)abort();stream=p;stream_capacity=cap;
     }
-    DrawState s;memset(&s,0,sizeof s);
+    QDrawState s;memset(&s,0,sizeof s);
     s.texture=bindings[0];s.mode=mode;s.src=blend_src;s.dst=blend_dst;s.blend=blend_on;
     s.textured=texture_on[0];s.alpha=alpha_on;s.fog=texture_on[1];s.replace=alpha_replace;
     int layer=s.textured?atlas_layer(s.texture):-1;
@@ -291,6 +299,7 @@ void qglColor4f(float r,float g,float b,float a){color[0]=r;color[1]=g;color[2]=
 void qglTexCoord2f(float s,float t){qglTexCoord4f(s,t,0,1);}
 void qglTexCoord4f(float s,float t,float r,float q){uv[0]=s;uv[1]=t;uv[2]=r;uv[3]=q;}
 void qglVertex2f(float x,float y){if(im_count>=4096)abort();Vertex*v=&immediate[im_count++];v->p[0]=x;v->p[1]=y;v->p[2]=0;v->p[3]=0;memcpy(v->c,color,16);memcpy(v->uv,uv,16);}
+void qglVertex4f(float x,float y,float z,float w){qglVertex2f(x,y);immediate[im_count-1].p[2]=z;immediate[im_count-1].p[3]=w;}
 void qglEnd(void){if(im_mode==GL_QUADS){for(int i=0;i+3<im_count;i+=4){Vertex v[6]={immediate[i],immediate[i+1],immediate[i+2],immediate[i],immediate[i+2],immediate[i+3]};draw(v,6,GL_TRIANGLES);}}else draw(immediate,im_count,im_mode);}
 void qgl_pointer(V3 origin,V3 end){
     Vertex v[2]={{{origin.x,origin.y,origin.z,1},{.2f,.85f,1,1},{0,0,0,1}},{{end.x,end.y,end.z,1},{.2f,.85f,1,1},{0,0,0,1}}};
@@ -313,7 +322,15 @@ void eng_post_lut(const uint8_t lut[3][256],int w,int h){
     }else{
         glBindTexture(GL_TEXTURE_2D,post_tex);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
         if(w!=post_w||h!=post_h){glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,NULL);post_w=w;post_h=h;}
-        glCopyTexSubImage2D(GL_TEXTURE_2D,0,0,0,0,0,w,h);
+        /* GLES rejects CopyTexSubImage from an sRGB eye into an RGBA8
+         * texture. With sRGB writes disabled, blitting preserves the arcade
+         * bytes across these formats without a sampling-time sRGB decode. */
+        if(!post_copy_fb)glGenFramebuffers(1,&post_copy_fb);
+        GLint draw_fb;glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&draw_fb);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER,post_copy_fb);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,post_tex,0);
+        glBlitFramebuffer(0,0,w,h,0,0,w,h,GL_COLOR_BUFFER_BIT,GL_NEAREST);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER,(GLuint)draw_fb);
     }
     glActiveTexture(GL_TEXTURE1);glGetIntegerv(GL_TEXTURE_BINDING_2D,&binding[1]);glBindTexture(GL_TEXTURE_2D,lut_tex);
     if(changed){
@@ -326,6 +343,7 @@ void eng_post_lut(const uint8_t lut[3][256],int w,int h){
     glBindTexture(GL_TEXTURE_2D,binding[1]);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,binding[0]);active=0;
 }
 void qgl_shutdown(void){
+    glDeleteFramebuffers(1,&post_copy_fb);post_copy_fb=0;
     if(multi_active)qgl_stereo_end();
     glDeleteProgram(multi_program);glDeleteProgram(multi_post);glDeleteTextures(1,&multi_texture);glDeleteTextures(1,&multi_lut);glDeleteFramebuffers(1,&multi_fb);
     multi_program=multi_post=multi_texture=multi_fb=multi_lut=0;multi_w=multi_h=0;multi_lut_valid=false;framebuffer_multiview=NULL;

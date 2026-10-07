@@ -39,8 +39,10 @@ static inline void view_matrix(float *m,V3 p,Q4 orientation) {
     for (int i=0;i<16;i++) m[i]=a[i];
 }
 static inline void projection(float *m,float left,float right,float down,float up) {
-    float l=tanf(left),r=tanf(right),b=tanf(down),t=tanf(up),n=.02f,f=2000;
+    float l=tanf(left),r=tanf(right),b=tanf(down),t=tanf(up),n=.02f;
     for(int i=0;i<16;i++)m[i]=0;
     m[0]=2/(r-l);m[5]=2/(t-b);m[8]=(r+l)/(r-l);m[9]=(t+b)/(t-b);
-    m[10]=-(f+n)/(f-n);m[11]=-1;m[14]=-2*f*n/(f-n);
+    /* Arcade backgrounds exceed 3 km at this scale. An infinite far plane
+     * preserves their geometry instead of clipping it at the old 2 km limit. */
+    m[10]=-1;m[11]=-1;m[14]=-2*n;
 }

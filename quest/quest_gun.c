@@ -1,41 +1,64 @@
-#include <GLES3/gl3.h>
+#include "quest_gpu.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "quest_gun.h"
 
-typedef struct { float position[3],normal[3],uv[2]; } GunVertex;
+typedef struct { float position[3],normal[3],uv[2],color[3],part; } GunVertex;
 static GLuint program,vao,vbo,ibo,texture;
 static GLsizei index_count;
-static GLint u_view,u_projection,u_model,u_albedo;
+static GLint u_view,u_projection,u_model,u_albedo,u_recoil,u_trigger;
 static V3 muzzle;
+static bool articulated;
 
 static GLuint compile(GLenum type,const char *source){
-    GLuint s=glCreateShader(type);glShaderSource(s,1,&source,NULL);glCompileShader(s);
+    GLuint s=glCreateShader(type);qgpu_shader_source(s,source);glCompileShader(s);
     GLint ok;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);
     if(!ok){char log[2048];glGetShaderInfoLog(s,sizeof log,NULL,log);fprintf(stderr,"[GUN] shader: %s\n",log);glDeleteShader(s);return 0;}return s;
 }
 bool qgun_init(const char *path){
     FILE *f=fopen(path,"rb");if(!f){fprintf(stderr,"[GUN] missing model: %s\n",path);return false;}
-    char magic[8];uint32_t n[4];float tip[3];
+    char magic[8];uint32_t n[4]={0,0,1,1};float tip[3];
     GunVertex *vertices=NULL;uint32_t *indices=NULL;uint8_t *pixels=NULL;bool ok=false;
-    if(fread(magic,1,8,f)!=8||memcmp(magic,"TCGUN001",8)||fread(n,4,4,f)!=4||fread(tip,4,3,f)!=3)goto done;
+    if(fread(magic,1,8,f)!=8)goto done;
+    bool legacy=!memcmp(magic,"TCGUN001",8);
+    if(!legacy&&memcmp(magic,"TCGUN002",8))goto done;
+    if(fread(n,4,2,f)!=2||(legacy&&fread(n+2,4,2,f)!=2)||fread(tip,4,3,f)!=3)goto done;
     if(!n[0]||n[0]>100000||!n[1]||n[1]>300000||n[1]%3||!n[2]||n[2]>2048||!n[3]||n[3]>2048)goto done;
-    vertices=malloc((size_t)n[0]*sizeof *vertices);indices=malloc((size_t)n[1]*4);pixels=malloc((size_t)n[2]*n[3]*4);
+    vertices=calloc(n[0],sizeof *vertices);indices=malloc((size_t)n[1]*4);pixels=malloc((size_t)n[2]*n[3]*4);
     if(!vertices||!indices||!pixels)goto done;
-    if(fread(vertices,sizeof *vertices,n[0],f)!=n[0]||fread(indices,4,n[1],f)!=n[1]||fread(pixels,4,(size_t)n[2]*n[3],f)!=(size_t)n[2]*n[3]||fgetc(f)!=EOF)goto done;
+    for(uint32_t i=0;i<n[0];i++){
+        float raw[10];size_t count=legacy?8:10;
+        if(fread(raw,4,count,f)!=count)goto done;
+        for(size_t j=0;j<count;j++)if(!isfinite(raw[j]))goto done;
+        memcpy(vertices[i].position,raw,12);memcpy(vertices[i].normal,raw+3,12);
+        if(legacy){memcpy(vertices[i].uv,raw+6,8);for(int j=0;j<3;j++)vertices[i].color[j]=1;}
+        else{
+            if(raw[9]!=0&&raw[9]!=1&&raw[9]!=2)goto done;
+            vertices[i].part=raw[9];
+            for(int j=0;j<3;j++){
+                float c=raw[6+j];if(c<0||c>1)goto done;
+                /* Palette bytes are display-encoded, like the old sRGB atlas. */
+                vertices[i].color[j]=c<=.04045f?c/12.92f:powf((c+.055f)/1.055f,2.4f);
+            }
+        }
+    }
+    if(fread(indices,4,n[1],f)!=n[1])goto done;
+    if(legacy){if(fread(pixels,4,(size_t)n[2]*n[3],f)!=(size_t)n[2]*n[3])goto done;}
+    else memset(pixels,255,4);
+    if(fgetc(f)!=EOF)goto done;
     for(uint32_t i=0;i<n[1];i++)if(indices[i]>=n[0])goto done;
-    for(uint32_t i=0;i<n[0];i++)for(int j=0;j<8;j++)if(!isfinite(((float*)&vertices[i])[j]))goto done;
     for(int i=0;i<3;i++)if(!isfinite(tip[i]))goto done;
     GLuint vs=compile(GL_VERTEX_SHADER,
-        "#version 300 es\nprecision highp float;layout(location=0) in vec3 position;layout(location=1) in vec3 normal;layout(location=2) in vec2 texcoord;uniform mat4 view,projection,model;out vec3 n,p;out vec2 uv;void main(){mat4 mv=view*model;vec4 v=mv*vec4(position,1);p=v.xyz;n=mat3(mv)*normal;uv=texcoord;gl_Position=projection*v;}");
+        "#version 300 es\nprecision highp float;layout(location=0) in vec3 position;layout(location=1) in vec3 normal;layout(location=2) in vec2 texcoord;layout(location=3) in vec3 vertexColor;layout(location=4) in float part;uniform mat4 view,projection,model;uniform float recoil,triggerPull;out vec3 n,p,color;out vec2 uv;void main(){vec3 pos=position;if(part>1.5)pos.z+=0.034*recoil;else if(part>0.5)pos.z+=0.003*triggerPull;mat4 mv=view*model;vec4 v=mv*vec4(pos,1);p=v.xyz;n=mat3(mv)*normal;uv=texcoord;color=vertexColor;gl_Position=projection*v;}");
     GLuint fs=compile(GL_FRAGMENT_SHADER,
-        "#version 300 es\nprecision highp float;in vec3 n,p;in vec2 uv;uniform sampler2D albedo;out vec4 frag;void main(){vec3 N=normalize(n);if(!gl_FrontFacing)N=-N;vec3 L=normalize(vec3(-0.4,0.8,0.6));vec3 V=normalize(-p);vec3 H=normalize(L+V);vec3 base=texture(albedo,uv).rgb;float diffuse=0.48+0.52*max(dot(N,L),0.0);float spec=0.16*pow(max(dot(N,H),0.0),40.0);frag=vec4(pow(clamp(base*diffuse+spec,0.0,1.0),vec3(1.0/2.2)),1);}");
+        "#version 300 es\nprecision highp float;in vec3 n,p,color;in vec2 uv;uniform sampler2D albedo;out vec4 frag;void main(){vec3 N=normalize(n);if(!gl_FrontFacing)N=-N;vec3 L=normalize(vec3(-0.4,0.8,0.6));vec3 V=normalize(-p);vec3 H=normalize(L+V);vec3 base=texture(albedo,uv).rgb*color;float diffuse=0.48+0.52*max(dot(N,L),0.0);float spec=0.16*pow(max(dot(N,H),0.0),40.0);frag=vec4(pow(clamp(base*diffuse+spec,0.0,1.0),vec3(1.0/2.2)),1);}");
     if(!vs||!fs){if(vs)glDeleteShader(vs);if(fs)glDeleteShader(fs);goto done;}
     program=glCreateProgram();glAttachShader(program,vs);glAttachShader(program,fs);glLinkProgram(program);glDeleteShader(vs);glDeleteShader(fs);
     GLint linked;glGetProgramiv(program,GL_LINK_STATUS,&linked);if(!linked)goto done;
     u_view=glGetUniformLocation(program,"view");u_projection=glGetUniformLocation(program,"projection");u_model=glGetUniformLocation(program,"model");u_albedo=glGetUniformLocation(program,"albedo");
+    u_recoil=glGetUniformLocation(program,"recoil");u_trigger=glGetUniformLocation(program,"triggerPull");
     GLint binding;glActiveTexture(GL_TEXTURE0);glGetIntegerv(GL_TEXTURE_BINDING_2D,&binding);
     glGenTextures(1,&texture);glBindTexture(GL_TEXTURE_2D,texture);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
@@ -45,20 +68,25 @@ bool qgun_init(const char *path){
     glGenVertexArrays(1,&vao);glBindVertexArray(vao);glGenBuffers(1,&vbo);glBindBuffer(GL_ARRAY_BUFFER,vbo);glBufferData(GL_ARRAY_BUFFER,(GLsizeiptr)n[0]*sizeof *vertices,vertices,GL_STATIC_DRAW);
     glGenBuffers(1,&ibo);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,ibo);glBufferData(GL_ELEMENT_ARRAY_BUFFER,(GLsizeiptr)n[1]*4,indices,GL_STATIC_DRAW);
     for(int i=0;i<3;i++){glEnableVertexAttribArray(i);glVertexAttribPointer(i,i==2?2:3,GL_FLOAT,GL_FALSE,sizeof(GunVertex),(void*)(size_t)(i==0?0:i==1?12:24));}
+    glEnableVertexAttribArray(3);glVertexAttribPointer(3,3,GL_FLOAT,GL_FALSE,sizeof(GunVertex),(void*)32);
+    glEnableVertexAttribArray(4);glVertexAttribPointer(4,1,GL_FLOAT,GL_FALSE,sizeof(GunVertex),(void*)44);
     index_count=(GLsizei)n[1];muzzle=v3(tip[0],tip[1],tip[2]);
+    articulated=!legacy;
     ok=glGetError()==GL_NO_ERROR;
-    if(ok)fprintf(stderr,"[GUN] Tripo model loaded: %u vertices, %u triangles, %ux%u albedo\n",n[0],n[1]/3,n[2],n[3]);
+    if(ok)fprintf(stderr,"[GUN] %s model loaded: %u vertices, %u triangles; %s\n",articulated?"Arcade pistol":"Tripo",n[0],n[1]/3,articulated?"animated slide and trigger":"textured mesh");
 done:
     fclose(f);free(vertices);free(indices);free(pixels);
     if(!ok){fprintf(stderr,"[GUN] model initialization failed\n");qgun_shutdown();}return ok;
 }
 V3 qgun_muzzle(V3 position,Q4 rotation){return add(position,rotate(rotation,muzzle));}
-void qgun_draw(const float view[16],const float projection[16],V3 position,Q4 rotation,float recoil){
+void qgun_draw(const float view[16],const float projection[16],V3 position,Q4 rotation,float recoil,float trigger_pull){
     if(!program)return;
     /* Recoil is visual only: it cannot change the game's shot coordinates. */
     float kick=fminf(1,fmaxf(0,recoil));
-    position=add(position,rotate(rotation,v3(0,0,.014f*kick)));
-    rotation=product(rotation,(Q4){sinf(.045f*kick),0,0,cosf(.045f*kick)});
+    if(!articulated){
+        position=add(position,rotate(rotation,v3(0,0,.014f*kick)));
+        rotation=product(rotation,(Q4){sinf(.045f*kick),0,0,cosf(.045f*kick)});
+    }
     V3 x=rotate(rotation,v3(1,0,0)),y=rotate(rotation,v3(0,1,0)),z=rotate(rotation,v3(0,0,1));
     float model[16]={x.x,x.y,x.z,0,y.x,y.y,y.z,0,z.x,z.y,z.z,0,position.x,position.y,position.z,1};
     GLint binding,active_texture;glGetIntegerv(GL_ACTIVE_TEXTURE,&active_texture);glActiveTexture(GL_TEXTURE0);glGetIntegerv(GL_TEXTURE_BINDING_2D,&binding);
@@ -67,10 +95,11 @@ void qgun_draw(const float view[16],const float projection[16],V3 position,Q4 ro
      * cleared depth buffer for the weapon's self-occlusion. */
     glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glDepthMask(GL_TRUE);glClearDepthf(1);glClear(GL_DEPTH_BUFFER_BIT);
     glUseProgram(program);glUniformMatrix4fv(u_view,1,GL_FALSE,view);glUniformMatrix4fv(u_projection,1,GL_FALSE,projection);glUniformMatrix4fv(u_model,1,GL_FALSE,model);glUniform1i(u_albedo,0);
+    glUniform1f(u_recoil,kick);glUniform1f(u_trigger,fminf(1,fmaxf(0,trigger_pull)));
     glBindTexture(GL_TEXTURE_2D,texture);glBindVertexArray(vao);glDrawElements(GL_TRIANGLES,index_count,GL_UNSIGNED_INT,0);
     glDisable(GL_DEPTH_TEST);glBindTexture(GL_TEXTURE_2D,binding);glActiveTexture(active_texture);
 }
 void qgun_shutdown(void){
     glDeleteProgram(program);glDeleteVertexArrays(1,&vao);glDeleteBuffers(1,&vbo);glDeleteBuffers(1,&ibo);glDeleteTextures(1,&texture);
-    program=vao=vbo=ibo=texture=0;index_count=0;
+    program=vao=vbo=ibo=texture=0;index_count=0;articulated=false;
 }

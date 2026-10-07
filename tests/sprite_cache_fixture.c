@@ -1,4 +1,5 @@
 #include RENDERER_SOURCE
+#include "quest_scene.h"
 #include "sprite_hw.h"
 static sprite_state sst;
 fog_state g_fog;

@@ -26,6 +26,7 @@ set_source_files_properties("${UP}/timecris/src/tc_game.c" PROPERTIES COMPILE_DE
 add_library(main SHARED
   quest_main.c quest_host.c quest_gl.c quest_scene.c quest_gun.c quest_options.c quest_cover.c quest_ui.c
   "${UP}/timecris/src/tc_game.c" ${LIFTED}
+  "${ROOT}/build/tc_crate.c"
   "${UP}/timecris/gen/tc_c25.c" "${UP}/timecris/gen/tc_snd_driver.c"
   ${NAMCO22_ENGINE_LIFT_SRC} ${NAMCO22_ENGINE_C25_SRC} ${NAMCO22_ENGINE_SND_SRC}
   ${NAMCO22_ENGINE_GL_SRC} ${NAMCO22_ENGINE_SS22_SRC} ${NAMCO22_ENGINE_ROMZIP_SRC}

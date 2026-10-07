@@ -28,7 +28,7 @@ for name in ('reference','cached','budget'):
     define='' if name=='reference' else '#define TCVR\n'
     if name=='budget':define+='#define QVR_SPRITE_CACHE_BYTES 8192u\n'
     wrapper=out/f'{name}.c';wrapper.write_text(define+f'#define RENDERER_SOURCE "{ROOT.as_posix()}/quest/quest_gl.c"\n#define CACHE_SOURCE "{(out/"cache.c").as_posix()}"\n#include "{ROOT.as_posix()}/tests/sprite_cache_fixture.c"\n')
-    compile([f'cl /nologo /std:c11 /O2 /LD /I"{out}/include" /I"{ROOT}/quest/include" /I"{ROOT}/quest" /I"{ROOT}/upstream/engine" "{wrapper}" gles.lib /Fe:{name}.dll'])
+    compile([f'cl /nologo /std:c11 /O2 /LD /I"{out}/include" /I"{ROOT}/quest/include" /I"{ROOT}/quest" /I"{ROOT}/upstream/engine" "{wrapper}" "{ROOT}/quest/quest_scene.c" gles.lib /Fe:{name}.dll'])
 directory=os.add_dll_directory(str(angle));egl=C.WinDLL(str(angle/'libEGL.dll'))
 P=C.c_void_p;I=C.c_int;U=C.c_uint
 def bind(lib,name,result,*args):

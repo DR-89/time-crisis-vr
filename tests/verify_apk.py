@@ -1,6 +1,6 @@
 """Verify ROM integrity, the ARM64 ELF headers, manifest identity and exported entry point."""
 from pathlib import Path
-import argparse,hashlib,json,re,struct,subprocess,zipfile
+import argparse,hashlib,json,math,re,struct,subprocess,zipfile
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--apk',type=Path,default=ROOT/'artifacts/TimeCrisisVR-quest3-debug.apk');args=p.parse_args()
 apk=args.apk.resolve();info=json.loads(apk.with_name('build-info.json').read_text());bundled=info['roms_bundled']
@@ -17,10 +17,24 @@ with zipfile.ZipFile(apk) as z:
         digest,name=line.split('  ',1);model=z.read('assets/models/'+name)
         assert hashlib.sha256(model).hexdigest()==digest,name
         assert model==(ROOT/'quest/assets/models'/name).read_bytes(),name
-        assert model[:8]==b'TCGUN001'
-        vertices,indices,w,h=struct.unpack_from('<4I',model,8)
-        assert 0<vertices<=100000 and 0<indices<=300000 and indices%3==0 and 0<w<=2048 and 0<h<=2048
-        assert len(model)==36+vertices*32+indices*4+w*h*4
+        assert model[:8] in (b'TCGUN001',b'TCGUN002')
+        vertices,indices=struct.unpack_from('<2I',model,8)
+        assert 0<vertices<=100000 and 0<indices<=300000 and indices%3==0
+        if model[:8]==b'TCGUN001':
+            w,h=struct.unpack_from('<2I',model,16);assert 0<w<=2048 and 0<h<=2048
+            assert len(model)==36+vertices*32+indices*4+w*h*4
+            offset,stride=36,32
+        else:
+            offset,stride=28,40
+            assert len(model)==offset+vertices*stride+indices*4
+            parts=set()
+            for v in struct.iter_unpack('<10f',model[offset:offset+vertices*stride]):
+                assert all(math.isfinite(x) for x in v)
+                assert all(0<=x<=1 for x in v[6:9]) and v[9] in (0,1,2)
+                parts.add(v[9])
+            assert parts=={0,1,2}
+        assert all(math.isfinite(x) for x in struct.unpack_from('<3f',model,offset-12))
+        assert max(struct.unpack_from(f'<{indices}I',model,offset+vertices*stride))<vertices
     libs=[n for n in z.namelist() if n.startswith('lib/')]
     assert sorted(libs)==['lib/arm64-v8a/libSDL2.so','lib/arm64-v8a/libmain.so','lib/arm64-v8a/libopenxr_loader.so']
     for lib in libs:
@@ -41,6 +55,7 @@ for category in ('org.khronos.openxr.intent.category.IMMERSIVE_HMD','com.oculus.
 assert 'org.timecrisis.quest.setup' in setup,'Setup needs a separate Android task'
 assert ('android.intent.category.LAUNCHER' in main)==bundled
 assert "native-code: 'arm64-v8a'" in badging
+assert 'quest2|quest3|quest3s' in tree,'Quest 2 must not fall back to an older-device compatibility profile'
 readelf=ROOT/'.tools/ndk/android-ndk-r27c/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-readelf.exe'
 symbols=subprocess.check_output([str(readelf),'--dyn-syms',str(ROOT/'build/package-libs/libmain.so')],text=True)
 assert ' SDL_main' in symbols

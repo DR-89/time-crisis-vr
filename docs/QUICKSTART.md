@@ -1,27 +1,42 @@
 # Time Crisis VR — Quickstart
 
-A standalone experimental port for **Meta Quest 3**, built on **[spacestate1/namco22-decompile](https://github.com/spacestate1/namco22-decompile)**. See the [README](../README.md) for full documentation.
+**v0.8.4 adds adjustable gun pitch:** open options with the left menu button, then
+move the right stick up/down to change **GUN ANGLE**. Negative angles lower the
+barrel; try **-45 DEG** for a gun pointing 45 degrees too high. Click the left
+stick to reset. The angle is saved for both hands. Stage 2 crashes remain under
+investigation; see [diagnostic collection](STAGE2-REPORTS.md).
+
+A standalone experimental port tested on **Meta Quest 3**, with Quest 2 and Quest 3S declared in the APK, built on **[spacestate1/namco22-decompile](https://github.com/spacestate1/namco22-decompile)**. Quest 2 refresh-rate measurements remain pending. See the [README](../README.md) for full documentation.
 
 ## Install
 
-Download the [release APK](https://github.com/DR-89/time-crisis-vr/releases/latest) and install it with SideQuest or `adb install -r TimeCrisisVR-v0.7.3-quest3.apk`. Open **Unknown sources → Time Crisis VR (Experimental)**. The complete APK prepares its bundled game files automatically; no ZIP selection is needed.
+Download the [release APK](https://github.com/DR-89/time-crisis-vr/releases) and install it with SideQuest or `adb install -r TimeCrisisVR-v0.8.4-quest.apk`. Open **Unknown sources → Time Crisis VR (Experimental)**. The complete APK prepares its bundled game files automatically; no ZIP selection is needed. For Windows, see [PCVR and desktop setup](PCVR.md).
 
-After the arcade startup, press **A right**, wait briefly for three credits, then press the **right trigger** to start.
+After the arcade startup, press **A right** (or **X left** with DEFAULT HAND set to LEFT), wait briefly for three credits, then press **either trigger** to select that hand and start.
 
 ## Controls
 
-| Input | Action |
-| --- | --- |
-| Right controller / trigger | Aim / shoot |
-| A right | Insert three credits |
-| B right | Toggle the laser silently, without a popup |
-| Left menu button | Open options / resume |
-| Y left, in the menu | Switch physical ducking / left-trigger cover |
-| X left | Recenter and set the upright head-height reference |
-| Left trigger, in trigger mode | Hold: leave cover; release: hide/reload |
-| Duck, in physical mode | Hide/reload; sit or stand upright to leave cover |
+| Action | Default hand: right | Default hand: left |
+| --- | --- | --- |
+| Select weapon hand / shoot | Press either controller trigger | Press either controller trigger |
+| Insert three credits | A right | X left |
+| Toggle laser silently | B right | Y left |
+| Open options / resume | Left menu button | Left menu button |
+| Set default hand, in options | Right thumbstick click | Right thumbstick click |
+| Adjust gun angle, in options | Right stick up / down | Right stick up / down |
+| Reset gun angle, in options | Left thumbstick click | Left thumbstick click |
+| Change cover mode, in options | Y left | B right |
+| Recenter / calibrate upright height | X left | A right |
+| Hold: leave cover; release both: hide/reload | Either grip button | Either grip button |
+| Physical cover: hide/reload; leave cover | Duck; return upright | Duck; return upright |
 
-For physical ducking, select **PHYSICAL DUCKING** in the menu, sit or stand upright and press **X**. Lowering your head by about 20 cm enters cover. Returning to within 12 cm of the reference height leaves cover. Cover mode and laser preference are saved; head height is calibrated for each session.
+Press the **left trigger** to move the pistol left and shoot; press the **right trigger** to move it right and shoot. Hold **either grip button** to leave cover. Release **both** to hide and reload.
+
+In options, click the **right thumbstick** to change **DEFAULT HAND**. This saves the starting hand and the face-button layout above. Trigger handoffs leave the button layout unchanged. Resume with the left menu button. Release a trigger after tracking/focus loss before firing again.
+
+For physical ducking, select **PHYSICAL DUCKING** in the menu, sit or stand upright and press **X** (right-handed) or **A** (left-handed). Lowering your head by about 20 cm enters cover. Returning to within 12 cm of the reference height leaves cover. Weapon hand, cover mode and laser preference are saved; head height is calibrated for each session.
+
+Laser assistance starts **on** with new settings. Previously saved choices are retained.
 
 ## Status and limitations
 

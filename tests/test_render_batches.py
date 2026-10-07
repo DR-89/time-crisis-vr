@@ -9,7 +9,7 @@ from pathlib import Path
 import argparse, ctypes as C, os, re, shutil, subprocess
 
 ROOT=Path(__file__).resolve().parents[1]
-p=argparse.ArgumentParser();p.add_argument('--reference',type=Path);p.add_argument('--multiview',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--reference',type=Path);p.add_argument('--multiview',action='store_true');p.add_argument('--srgb',action='store_true',help='Compare a raw sRGB eye target with the original RGBA8 target');a=p.parse_args()
 reference=a.reference.resolve() if a.reference else ROOT/'quest/quest_gl.c';assert reference.is_file()
 out=ROOT/'build/render-test';out.mkdir(parents=True,exist_ok=True)
 vswhere=Path(os.environ['ProgramFiles(x86)'])/'Microsoft Visual Studio/Installer/vswhere.exe'
@@ -38,6 +38,7 @@ for name,source in [('reference',reference),('deferred',ROOT/'quest/quest_gl.c')
     if 'void qgl_scene_begin(' in source.read_text():define+='#define TEST_SCENE_TARGET\n'
     if 'void qgl_atlas_texture(' in source.read_text():define+='#define TEST_ATLAS_ARRAY\n'
     if name=='deferred' and a.multiview:define+='#define TEST_MULTIVIEW\n'
+    if name=='deferred' and a.srgb:define+='#define TEST_SRGB_TARGET\n'
     wrapper.write_text(define+f'#define RENDERER_SOURCE "{source.as_posix()}"\n#include "{(ROOT / "tests/render_fixture.c").as_posix()}"\n')
     run_script([f'cl /nologo /std:c11 /O2 /LD /I"{out / "include"}" /I"{ROOT / "quest/include"}" /I"{ROOT / "quest"}" /I"{ROOT / "upstream/engine"}" "{wrapper}" gles.lib /Fe:{name}.dll'])
 directory=os.add_dll_directory(str(angle));egl=C.WinDLL(str(angle/'libEGL.dll'))
@@ -69,5 +70,16 @@ for variant in range(4):
     differences=sum(x!=y for x,y in zip(expected,actual))
     assert not differences,f'Eye {variant}: {differences} channel differences'
 assert results['deferred',0]!=results['deferred',1],'Eye transforms produced identical images'
+if not a.reference:
+    oracle=bind(lib,'projection_fixture',I,I,I,I,P);projected=[]
+    for variant in range(3):
+        surface=bind(egl,'eglCreatePbufferSurface',P,P,P,P)(display,config,(I*5)(0x3057,256,0x3056,256,0x3038))
+        context=bind(egl,'eglCreateContext',P,P,P,P,P)(display,config,None,(I*3)(0x3098,3,0x3038));assert make_current(display,surface,surface,context)
+        pixels=(C.c_ubyte*(256*256*4))();assert oracle(variant,256,256,pixels)==1
+        projected.append(bytes(pixels));make_current(display,None,None,None)
+        bind(egl,'eglDestroyContext',U,P,P)(display,context);bind(egl,'eglDestroySurface',U,P,P)(display,surface)
+    assert projected[0]!=projected[1],'Camera uniform did not change the flat layer'
+    assert projected[1]==projected[2],'Flat sprites and reconstructed camera rays do not align off-centre'
+    print('PASS: flat sprite grid matches reconstructed polygons pixel-for-pixel; old 500 px projection differs.')
 bind(egl,'eglTerminate',U,P)(display)
-print('PASS: '+('multiview' if a.multiview else 'deferred')+' both eyes, identity and non-identity gamma are byte-identical to reference; no GLES errors.')
+print('PASS: '+('raw sRGB target, ' if a.srgb else '')+('multiview' if a.multiview else 'deferred')+' both eyes, identity and non-identity gamma are byte-identical to reference; no GLES errors.')
