@@ -19,6 +19,13 @@ capture at frame 34,000 shows **STAGE 2 CLEAR**. This establishes that this
 particular recorded route completes Stage 2; it does not reproduce either
 reporter's specific chandelier shot or stairs failure.
 
+The subsequent Quest 3 playtest of `0.8.4-angle-test.1` ended normally at frame
+31,016 (Android `EXIT_SELF`, status 0), with no reported CPU traps or graphics/
+DSP/sound faults. The tester confirmed the gun-angle setting and Stage 2 test
+worked without a crash. Both current/previous logs and input recordings were
+saved. The two original reports remain unresolved; this result does not establish
+their cause or imply a mistake by either reporter.
+
 ## Collect a report
 
 The existing v0.8.3 release already records the arcade inputs needed for replay.

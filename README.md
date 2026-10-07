@@ -13,7 +13,8 @@ An experimental VR port of **Time Crisis** for **Meta Quest** and **Windows PCVR
 ## Current status
 
 **Local test build: 0.8.4-angle-test.1.** Adds a saved gun-angle adjustment in
-options. Stage 2 chandelier/stairs crash reports are still under investigation;
+options, confirmed working on Quest 3. A live Stage 2 test completed without a
+crash. The reported chandelier/stairs crashes are still under investigation;
 see [report collection](docs/STAGE2-REPORTS.md). The latest public release remains v0.8.3.
 
 **v0.8.3 — experimental, Quest ARM64 and Windows x64.** Flat sprites, HUD and fallback aiming now use the arcade camera's projection, and shot marks sit on hit surfaces. The tester confirmed that the new test build worked on Quest 3. Quest 2 hardware refresh measurements and a new live PCVR check remain pending.
