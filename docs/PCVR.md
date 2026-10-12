@@ -1,5 +1,7 @@
 # Time Crisis VR for Windows
 
+**v0.9.0:** calibrated physical world scale and saved **WORLD SIZE (25–400%)** / **VIEW DISTANCE (0–100 cm)**. Start with 100% / 40 cm. In options, right stick left/right changes scale; left stick left/right changes distance. Keyboard Left/Right and Page Up/Page Down do the same; End restores 100%. Stereo, head parallax, aiming and impacts use the same transform. This preserves the tracked gun, HUD and physical controller size.
+
 **v0.8.4:** saved gun pitch from -60 to +60 degrees, adjustable in options.
 The corresponding Quest 3 test build was confirmed working. The reports in
 [issue #3](https://github.com/DR-89/time-crisis-vr/issues/3) still need failing

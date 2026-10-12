@@ -12,11 +12,23 @@ An experimental VR port of **Time Crisis** for **Meta Quest** and **Windows PCVR
 
 ## Current status
 
-**v0.8.4 — experimental, Quest ARM64 and Windows x64.** Adds a saved gun-angle
-adjustment in options, confirmed working on Quest 3. A live Stage 2 test completed
-without a crash. The reported chandelier/stairs crashes have not been reproduced;
-this release does not claim to fix them. See [report collection](docs/STAGE2-REPORTS.md).
-Quest 2 hardware refresh measurements and a new live PCVR check remain pending.
+**[v0.9.0](https://github.com/DR-89/time-crisis-vr/releases/tag/v0.9.0) — experimental, Quest ARM64 and Windows x64.** Corrects the oversized VR world and adds saved world-size and view-distance controls. The scale affects stereo depth, head-motion parallax, aiming and world impact marks together, including edits while paused.
+
+**Quest upgrade from v0.8.4 or earlier: the APK signing key has changed.**
+The original key was unavailable after restoring the project. This APK cannot
+update the old signed installation in place. **Back up settings and EEPROM
+before uninstalling**, then install v0.9.0 and restore the backup. See the
+[backup and migration instructions](docs/SIGNING-MIGRATION.md). Windows is unaffected.
+
+Changes in v0.9.0:
+
+- **WORLD SIZE: 25–400%**, in 5-point steps with the right stick left/right in options. The calibrated 100% starting point places a complete opening soldier at about 1.71 m and nearby cover at about 1.28 m.
+- **VIEW DISTANCE: 0–100 cm**, in 5 cm steps with the left stick left/right. The default is 40 cm, giving nearby cover more clearance without shrinking figures.
+- Head tracking, controller/gun size, HUD and physical-ducking thresholds stay in real metres. Original arcade simulation timing is retained.
+- Existing saved settings survive updates. For a fresh comparison, use **100% / 40 cm** in a running level; use 0 cm for the original arcade-camera position.
+- Automated tests cover stereo, surface aiming, impact placement, paused changes, settings and both hand layouts. The calibrated test build was exercised on Quest 3; a full-game and sustained-performance assessment remains pending.
+
+The previous gun-angle and Stage 2 fixes are retained. The reported chandelier/stairs crashes have not been reproduced; this release does not claim to fix them. See [report collection](docs/STAGE2-REPORTS.md). Quest 2/3S hardware tests and a new live PCVR check remain pending.
 
 Changes in v0.8.4:
 
@@ -58,12 +70,12 @@ The headset is asked to run at **120 Hz** when the runtime supports it, with a s
 
 ## Download and install
 
-1. Download **`TimeCrisisVR-v0.8.4-quest.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases).
+1. Download **`TimeCrisisVR-v0.9.0-quest.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases).
 2. Enable developer mode on the Quest, connect it by USB and allow USB debugging.
 3. Install the APK with SideQuest or Android platform-tools:
 
    ```sh
-   adb install -r TimeCrisisVR-v0.8.4-quest.apk
+   adb install -r TimeCrisisVR-v0.9.0-quest.apk
    ```
 
 4. Open **Time Crisis VR (Experimental)** from the Quest library's **Unknown sources** section.
@@ -71,11 +83,11 @@ The headset is asked to run at **120 Hz** when the runtime supports it, with a s
 
 The bundled release APK includes the supplied Time Crisis ROM set and prepares it automatically on first start. **No separate ZIP selection or ROM import is required for that APK.** First startup can take a little longer while files are verified. Original game content is distinct from the MIT-licensed port code; see [NOTICE.md](NOTICE.md).
 
-Updates installed with `adb install -r` retain your settings and game data. Uninstalling the app removes its private data. The APK uses the project's development signing key and remains debuggable for diagnostics; this is a sideload release, not a store release. The private signing key is not in the repository.
+Updates signed with the same key retain settings and game data. **The v0.9.0 signing-key change requires the migration described above for v0.8.4 and earlier.** Uninstalling removes private app data, so keep a verified backup first. The APK remains debuggable for diagnostics; this is a sideload release, not a store release. The private signing key is not in the repository.
 
 ### Windows / PCVR
 
-Extract **`TimeCrisisVR-v0.8.4-windows-x64.zip`** to a writable folder. Connect the
+Extract **`TimeCrisisVR-v0.9.0-windows-x64.zip`** to a writable folder. Connect the
 headset through your PC VR software, select an OpenXR runtime with OpenGL support,
 then open **Play VR.cmd**. **Play SteamVR.cmd** selects an installed SteamVR runtime
 for this launch only. **Play Desktop.cmd** starts mouse/keyboard play on a monitor.
@@ -101,6 +113,8 @@ The importer verifies every required chip by SHA-256 and accepts checksum-matchi
 | Toggle laser silently, with no popup | B right | Y left |
 | Pause and open options / resume | Left menu button | Left menu button |
 | Set default hand, **in options** | Right thumbstick click | Right thumbstick click |
+| Adjust world size, **in options** | Right stick left / right | Right stick left / right |
+| Adjust view distance, **in options** | Left stick left / right | Left stick left / right |
 | Adjust gun angle, **in options** | Right stick up / down | Right stick up / down |
 | Reset gun angle, **in options** | Left thumbstick click | Left thumbstick click |
 | Switch cover mode, **in options** | Y left | B right |
@@ -122,6 +136,29 @@ saved and applies to both hands, rotating the model, muzzle, laser and shot
 direction together. Zero preserves the original runtime aim pose. Recenter and
 automatic hand switching retain your angle.
 
+**World size:** open the left menu and move the **right stick left/right** to
+adjust **WORLD SIZE** from **25% to 400%** in 5-point steps. Hold to repeat.
+Higher values make the world larger. **100%** is the calibrated starting value:
+a complete stage-one soldier measures about **1.7 m** in its firing pose and
+the nearby cover about **1.28 m** high. Existing saved percentages are retained.
+This is a physical VR scale: depth, stereoscopic depth cues and head-motion parallax
+change together. At zero extra view distance, the centred angular framing stays
+the same; use the separate view-distance control when cover fills too much of
+the view.
+The setting is saved automatically. Windows also accepts Left/Right;
+End restores 100%. Head movement, controller/weapon size, HUD/menu size and
+physical ducking distances stay in real metres. Target rays and world effects
+follow the scaled scene, including changes made while paused.
+
+**View distance:** open options and move the **left stick left/right** to adjust
+**VIEW DISTANCE** from **0 to 100 cm**, in 5 cm steps. It starts at **40 cm**.
+Increasing it moves the scene farther from you, so close cover occupies less
+of your view while distant enemies change less. The gun, head tracking and HUD
+keep their physical positions. Aim and impact marks follow the shifted scene.
+The setting is saved; Windows also accepts Page Up/Page Down while paused.
+Start calibration with WORLD SIZE 100% and VIEW DISTANCE 40 cm; use 0 cm to
+restore the original arcade-camera position.
+
 **Cover mode:** either grip button by default. Hold at least one to leave cover; release both to hide and reload. Open the left menu and press **Y** (right default hand) or **B** (left default hand) to switch between **PHYSICAL DUCKING** and **GRIP BUTTONS**. Cover mode can only change in options. The in-game menu and all documentation use English.
 
 ### Physical ducking
@@ -134,9 +171,9 @@ Choose physical ducking in the menu while upright. Press **X** (right-handed) or
 - The recenter button recalibrates for a different standing/seated position. Height is recalibrated each app session; the selected mode is saved.
 - Missing head tracking releases the virtual pedal. Cover input does not depend on the weapon controller being visible.
 
-![Options with left default hand, -45 degree gun angle and grip cover](docs/images/options-english.png)
+![Options with saved world-size, view-distance and gun-angle controls](docs/images/options-english.png)
 
-*Rendered from the actual menu code in the desktop GLES test fixture.*
+*Current world-size, view-distance and gun-angle controls, rendered from the production menu code in the desktop GLES fixture.*
 
 ## What the port includes
 
@@ -173,8 +210,8 @@ One-second FPS counters can read slightly above 120 due to sample boundaries. Th
 - Some sprites/HUD elements use a fixed-depth plane. World scale, stereo comfort and large sideways movements need broader testing.
 - Original 2D hit logic still matters. All bosses, special targets and edge-of-screen hits have not been verified.
 - The gun uses its own depth buffer and is drawn as a foreground model; level walls do not occlude it.
-- No hand model, MSAA or articulated gun slide. Desktop operator/settings menus are not fully exposed in VR.
-- Tested on **Quest 3**. The manifest allows Quest 3S, but that device has not been validated. Quest 2 is not a supported target.
+- No hand model or MSAA. Desktop operator/settings menus are not fully exposed in VR.
+- Tested on **Quest 3**. Quest 2 and Quest 3S are declared in the manifest but have not been validated on hardware.
 - PCVR initially targets Quest Touch controls and has been tested through Virtual Desktop. Other runtimes and controller profiles remain unverified.
 
 ## Build from source (Windows)
@@ -200,7 +237,7 @@ Output:
 - Bundled: `artifacts/bundled/TimeCrisisVR-with-ROM.apk`
 - ROM-free: `artifacts/TimeCrisisVR-quest3-debug.apk`
 - Build metadata and SHA-256: `build-info.json` beside the corresponding APK.
-- Windows: `artifacts/pc/TimeCrisisVR-v0.8.4-windows-x64.zip` and its `.sha256` file.
+- Windows: `artifacts/pc/TimeCrisisVR-v0.9.0-windows-x64.zip` and its `.sha256` file.
 
 The bootstrap downloads pinned NDK r27c, API 34, Build Tools 35.0.0, SDL 2.30.11, OpenXR loader 1.1.43 and Ninja 1.12.1 into `.tools/`. The first build takes several minutes and multiple GB. It does not install a global Android SDK. CMake and the JDK must already be installed.
 
@@ -218,6 +255,7 @@ See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for the complete test and diagnostic w
 ./Test-Quest.ps1
 python tests/test_options.py
 python tests/test_handedness.py
+python tests/test_world_scale.py
 python tests/test_rasters.py
 python tests/test_sprite_cache.py
 python tests/test_patches.py

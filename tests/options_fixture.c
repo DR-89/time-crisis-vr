@@ -6,8 +6,10 @@ __declspec(dllexport) int options_fixture(int variant,int w,int h,uint8_t *pixel
     float view[16],proj[16];view_matrix(view,v3(variant==3||variant==7?.032f:-.032f,0,0),(Q4){0,0,0,1});projection(proj,-.65f,.65f,-.65f,.65f);
     glViewport(0,0,w,h);glClearColor(.08f,.12f,.16f,1);glClear(GL_COLOR_BUFFER_BIT);
     bool physical=(variant>=2&&variant<=4)||variant==6||variant==7;
-    qui_draw(view,proj,v3(0,0,0),(Q4){0,0,0,1},variant>=1,physical,variant>=5,variant==9?-45:variant==10?60:0,variant!=4);
-    if(variant==8)qui_draw(view,proj,v3(0,0,0),(Q4){0,0,0,1},true,false,false,0,true);
-    if(variant==11){glClear(GL_COLOR_BUFFER_BIT);qui_draw(view,proj,v3(0,0,0),(Q4){0,0,0,1},true,false,true,-45,true);}
+    qui_draw(view,proj,v3(0,0,0),(Q4){0,0,0,1},variant>=1,physical,variant>=5,variant==9?-45:variant==10?60:0,variant==12?25:variant==13?400:100,variant==15?100:40,variant!=4);
+    if(variant==8)qui_draw(view,proj,v3(0,0,0),(Q4){0,0,0,1},true,false,false,0,100,40,true);
+    if(variant==11){glClear(GL_COLOR_BUFFER_BIT);qui_draw(view,proj,v3(0,0,0),(Q4){0,0,0,1},true,false,true,-45,100,40,true);}
+    if(variant==14){glClear(GL_COLOR_BUFFER_BIT);qui_draw(view,proj,v3(0,0,0),(Q4){0,0,0,1},true,false,true,0,400,40,true);}
+    if(variant==16){glClear(GL_COLOR_BUFFER_BIT);qui_draw(view,proj,v3(0,0,0),(Q4){0,0,0,1},true,false,true,0,100,100,true);}
     glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,pixels);GLenum error=glGetError();qui_shutdown();return error?-(int)error:1;
 }

@@ -5,6 +5,10 @@ extern int qvr_flat_view;
 #include "sprite_hw.h"
 #include "vr_math.h"
 extern float qvr_units_per_meter;
+/* Size relative to the calibrated world; geometry caches remain in base metres. */
+extern float qvr_world_scale;
+/* Extra real-metre distance from the arcade camera, world geometry only. */
+extern float qvr_view_distance;
 void qvr_vertex(const geo_quad *q,float x,float y,float z,float out[4]);
 void qvr_scene_begin(void);
 void qvr_scene_quad(const geo_quad *q);
