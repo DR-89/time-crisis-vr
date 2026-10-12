@@ -25,10 +25,10 @@ Changes in v0.9.0:
 - **WORLD SIZE: 25–400%**, in 5-point steps with the right stick left/right in options. The calibrated 100% starting point places a complete opening soldier at about 1.71 m and nearby cover at about 1.28 m.
 - **VIEW DISTANCE: 0–100 cm**, in 5 cm steps with the left stick left/right. The default is 40 cm, giving nearby cover more clearance without shrinking figures.
 - Head tracking, controller/gun size, HUD and physical-ducking thresholds stay in real metres. Original arcade simulation timing is retained.
-- Existing saved settings survive updates. For a fresh comparison, use **100% / 40 cm** in a running level; use 0 cm for the original arcade-camera position.
+- Restore your saved settings after the signing-key migration; later updates with the new key retain them. For a fresh comparison, use **100% / 40 cm** in a running level; use 0 cm for the original arcade-camera position.
 - Automated tests cover stereo, surface aiming, impact placement, paused changes, settings and both hand layouts. The calibrated test build was exercised on Quest 3; a full-game and sustained-performance assessment remains pending.
 
-The previous gun-angle and Stage 2 fixes are retained. The reported chandelier/stairs crashes have not been reproduced; this release does not claim to fix them. See [report collection](docs/STAGE2-REPORTS.md). Quest 2/3S hardware tests and a new live PCVR check remain pending.
+The previous gun-angle controls and diagnostic exporter are retained. The reported chandelier/stairs crashes have not been reproduced; this release does not claim to fix them. See [report collection](docs/STAGE2-REPORTS.md). Quest 2/3S hardware tests and a new live PCVR check remain pending.
 
 Changes in v0.8.4:
 
