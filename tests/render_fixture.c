@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include RENDERER_SOURCE
+#include "quest_scene.h"
 #ifdef TEST_SRGB_TARGET
 #include "quest_color.h"
 #endif
@@ -30,6 +31,43 @@ static void rect(float x,float y,float w,float h){
     qglTexCoord2f(1,1);qglVertex2f(x+w,y+h);
     qglTexCoord2f(0,1);qglVertex2f(x,y+h);qglEnd();
 }
+/* Actual near-cover depth from a stage-one replay. Exercise scene conversion,
+ * streamed vertices, both eye matrices and (on Quest) the multiview array blit. */
+#ifdef TEST_SCENE_TARGET
+__declspec(dllexport) int world_scale_fixture(float size,float distance,float head,int eye,int w,int h,uint8_t *out){
+    post_w=post_h=0;active=0;texture_on[0]=texture_on[1]=0;
+    if(!qgl_init())return 0;
+    float views[2][16],projs[2][16];
+    for(int i=0;i<2;i++){
+        view_matrix(views[i],v3(head+(i?.032f:-.032f),0,0),(Q4){0,0,0,1});
+        projection(projs[i],-atanf(1),atanf(1),-atanf(1),atanf(1));
+    }
+    qgl_target(eye,0);
+#ifdef TEST_MULTIVIEW
+    if(!qgl_stereo_init(multiview_proc)||!qgl_stereo_begin(views[0],projs[0],w,h))return -10;
+#else
+    qgl_eye(views[eye],projs[eye]);
+#endif
+    qgl_scene_begin(NULL,w,h);glViewport(0,0,w,h);
+    qglColorMask(1,1,1,1);glClearColor(0,0,0,1);qglClear(GL_COLOR_BUFFER_BIT);
+    qglDisable(GL_DEPTH_TEST);qglDisable(GL_BLEND);qglDisable(GL_ALPHA_TEST);
+    qglActiveTexture(GL_TEXTURE1);qglDisable(GL_TEXTURE_2D);
+    qglActiveTexture(GL_TEXTURE0);qglDisable(GL_TEXTURE_2D);
+    geo_quad q={0};q.vr_focal=772.5625f;q.vr_cx=320;q.vr_cy=240;
+    qvr_world_scale=size;qvr_view_distance=distance;qvr_flat_view=0;
+    const float xy[4][2]={{300,180},{340,180},{340,220},{300,220}};
+    qglColor4f(0,1,0,1);qglBegin(GL_QUADS);
+    for(int i=0;i<4;i++){float p[4];qvr_vertex(&q,xy[i][0],xy[i][1],15337,p);qglVertex4f(p[0],p[1],p[2],p[3]);}
+    qglEnd();
+    qgl_flat_camera(320,240,772.5625f);qglColor4f(1,0,0,1);rect(300,300,40,40);
+    qgl_flush();
+#ifdef TEST_MULTIVIEW
+    qgl_stereo_end();qgl_target(eye,0);qgl_eye(views[eye],projs[eye]);qgl_stereo_blit(eye);
+#endif
+    glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,out);
+    int ok=glGetError()?0:1;qgl_shutdown();return ok;
+}
+#endif
 /* Pixel-level oracle: flat sprites must lie on the reconstructed camera rays. */
 __declspec(dllexport) int projection_fixture(int variant,int w,int h,uint8_t *out){
     if(!qgl_init())return 0;

@@ -9,7 +9,12 @@ static unsigned path_count,action_count,space_count,binding_count;
 static XrActionSuggestedBinding suggested[20];
 static XrActionType types[16];
 static bool dual[16],buttons[16][3],connected[2]={true,true},tracked[2]={true,true};
-static float stick_y;
+static float stick_x,stick_y;
+float qvr_world_scale=1.f;
+float qvr_units_per_meter=12000.f;
+float qvr_view_distance;
+static float distance_x,distance_y;
+static bool distance_active=true;
 static bool stick_active=true;
 static Q4 controller_rotation={0,0,0,1};
 static float triggers[2],grips[2];
@@ -78,9 +83,10 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStatePose(XrSession s,const XrActionSt
     out->isActive=connected[h];return XR_SUCCESS;
 }
 XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateVector2f(XrSession s,const XrActionStateGetInfo *get,XrActionStateVector2f *out){
-    (void)s;assert(get->action==pitch_action&&get->subactionPath==XR_NULL_PATH);
+    (void)s;assert((get->action==pitch_action||get->action==distance_action)&&get->subactionPath==XR_NULL_PATH);
     assert(types[id(get->action)]==XR_ACTION_TYPE_VECTOR2F_INPUT);
-    out->isActive=stick_active&&connected[RIGHT_HAND];out->currentState=(XrVector2f){0,stick_y};return XR_SUCCESS;
+    if(get->action==distance_action){out->isActive=distance_active&&connected[LEFT_HAND];out->currentState=(XrVector2f){distance_x,distance_y};return XR_SUCCESS;}
+    out->isActive=stick_active&&connected[RIGHT_HAND];out->currentState=(XrVector2f){stick_x,stick_y};return XR_SUCCESS;
 }
 XRAPI_ATTR XrResult XRAPI_CALL xrLocateSpace(XrSpace space,XrSpace base,XrTime t,XrSpaceLocation *out){
     (void)base;(void)t;int h=(int)(uintptr_t)space-1;assert(h==0||h==1);
@@ -118,7 +124,7 @@ int main(void){
     get_rate=NULL;request_rate=NULL;
     options_path="handedness-test.cfg";qoptions_load(options_path,&options);
     assert(!options.left_handed);instance=(XrInstance)(uintptr_t)1;session=(XrSession)(uintptr_t)1;
-    running=focused=origin_set=true;assert(actions_init());assert(space_count==2&&binding_count==16);
+    running=focused=origin_set=true;assert(actions_init());assert(space_count==2&&binding_count==17);
     for(int h=0;h<2;h++){
         char name[100];const char *prefix=h?"/user/hand/right":"/user/hand/left";
         snprintf(name,sizeof name,"%s/input/aim/pose",prefix);bound(aim_action,name);
@@ -227,6 +233,53 @@ int main(void){
     controller_rotation=product((Q4){0,sinf(.6f),0,cosf(.6f)},controller_rotation);tick();
     V3 forward=rotate(gun_rotation,v3(0,0,-1));assert(fabsf(forward.y)<1e-6f&&fabsf(forward.x+sinf(1.2f))<1e-6f);
     controller_rotation=(Q4){0,0,0,1};click(pitch_reset_action,2);tick();assert(options.gun_pitch==0&&gun_rotation.w==1);
-    puts("PASS: real host controls, gun pitch persistence/bounds/repeat/reset, model/muzzle/aim alignment in both hands, local-space correction, focus/action loss and existing input regressions");
+    /* World size: neutral arm, repeat delay, dead zone, diagonal isolation,
+     * focus/action loss, persistence and bounds. Physical poses stay in metres. */
+    stick_x=stick_y=0;tick();set_world_scale(100);
+    V3 physical_gun=gun_position,physical_muzzle=gun_origin;
+    stick_x=1;sync_input(1000,true,1.7f);assert(options.world_scale==105);
+    sync_input(399999999,true,1.7f);assert(options.world_scale==105);
+    sync_input(400001000,true,1.7f);assert(options.world_scale==110);
+    sync_input(500001000,true,1.7f);assert(options.world_scale==115);
+    qoptions_load(options_path,&saved);assert(saved.world_scale==115&&options_saved);
+    assert(fabsf(qvr_world_scale-1.15f)<1e-6f);
+    assert(gun_position.x==physical_gun.x&&gun_position.y==physical_gun.y&&gun_position.z==physical_gun.z);
+    assert(gun_origin.x==physical_muzzle.x&&gun_origin.y==physical_muzzle.y&&gun_origin.z==physical_muzzle.z);
+    stick_active=false;tick();stick_active=true;tick();assert(options.world_scale==115);
+    stick_x=0;tick();stick_x=-1;tick();assert(options.world_scale==110);
+    focused=false;tick();focused=true;tick();assert(options.world_scale==110);
+    stick_x=NAN;tick();stick_x=-1;tick();assert(options.world_scale==110);
+    stick_x=0;tick();stick_x=.5f;tick();assert(options.world_scale==110);
+    stick_x=1;stick_y=.8f;tick();assert(options.world_scale==115&&options.gun_pitch==0);
+    stick_x=stick_y=0;tick();stick_x=.8f;stick_y=1;tick();assert(options.world_scale==115&&options.gun_pitch==1);
+    stick_x=stick_y=0;tick();click(pause_action,2);assert(!paused);
+    stick_x=1;tick();assert(options.world_scale==115);
+    click(pause_action,2);assert(paused);tick();assert(options.world_scale==115);
+    stick_x=0;tick();stick_x=1;tick();assert(options.world_scale==120);
+    set_world_scale(1000);assert(options.world_scale==400&&qvr_world_scale==4.f);
+    set_world_scale(-1);assert(options.world_scale==25&&qvr_world_scale==.25f);
+    qoptions_load(options_path,&saved);assert(saved.world_scale==25&&saved.gun_pitch==1);
+    bound(distance_action,"/user/hand/left/input/thumbstick");
+    stick_x=stick_y=0;distance_x=0;tick();set_view_distance(40);
+    physical_gun=gun_position;physical_muzzle=gun_origin;
+    distance_x=1;sync_input(1000,true,1.7f);assert(options.view_distance==45);
+    sync_input(399999999,true,1.7f);assert(options.view_distance==45);
+    sync_input(400001000,true,1.7f);assert(options.view_distance==50);
+    sync_input(500001000,true,1.7f);assert(options.view_distance==55);
+    qoptions_load(options_path,&saved);assert(saved.view_distance==55&&fabsf(qvr_view_distance-.55f)<1e-6f);
+    assert(gun_position.z==physical_gun.z&&gun_origin.z==physical_muzzle.z);
+    distance_active=false;tick();distance_active=true;tick();assert(options.view_distance==55);
+    distance_x=0;tick();distance_x=-1;tick();assert(options.view_distance==50);
+    focused=false;tick();focused=true;tick();assert(options.view_distance==50);
+    distance_x=NAN;tick();distance_x=-1;tick();assert(options.view_distance==50);
+    distance_x=0;tick();distance_x=.5f;tick();assert(options.view_distance==50);
+    distance_x=.8f;distance_y=1;tick();assert(options.view_distance==50);
+    distance_x=distance_y=0;tick();click(pause_action,2);assert(!paused);
+    distance_x=1;tick();assert(options.view_distance==50);
+    click(pause_action,2);assert(paused);tick();assert(options.view_distance==50);
+    distance_x=0;tick();distance_x=1;tick();assert(options.view_distance==55);
+    set_view_distance(1000);assert(options.view_distance==100&&qvr_view_distance==1);
+    set_view_distance(-1);assert(options.view_distance==0&&qvr_view_distance==0);
+    puts("PASS: world-scale controls/persistence/physical poses; real host controls, gun pitch persistence/bounds/repeat/reset, model/muzzle/aim alignment in both hands, local-space correction, focus/action loss and existing input regressions");
     return 0;
 }

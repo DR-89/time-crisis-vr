@@ -6,7 +6,7 @@ The fixture covers texture mutation, blend/mask/fog, gamma, laser and two eye
 transforms. Requires MSVC and the bootstrapped NDK headers.
 """
 from pathlib import Path
-import argparse, ctypes as C, os, re, shutil, subprocess
+import argparse, ctypes as C, json, os, re, shutil, subprocess
 
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--reference',type=Path);p.add_argument('--multiview',action='store_true');p.add_argument('--srgb',action='store_true',help='Compare a raw sRGB eye target with the original RGBA8 target');a=p.parse_args()
@@ -17,6 +17,8 @@ vs=Path(subprocess.check_output([str(vswhere),'-latest','-products','*','-requir
 vcvars=vs/'VC/Auxiliary/Build/vcvars64.bat'
 angle=next((Path(os.environ['LOCALAPPDATA'])/'Programs/Microsoft VS Code').glob('*/libEGL.dll')).parent
 headers=ROOT/'.tools/ndk/android-ndk-r27c/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include'
+if not headers.is_dir():
+    headers=next((ROOT/'.tools/android-sdk/ndk').glob('*/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include'))
 for folder in ('GLES3','KHR'):shutil.copytree(headers/folder,out/'include'/folder,dirs_exist_ok=True)
 (out/'include/android').mkdir(exist_ok=True)
 (out/'include/android/log.h').write_text('#define ANDROID_LOG_ERROR 6\nstatic int __android_log_print(int p,const char*t,const char*f,...){return 0;}\n')
@@ -40,7 +42,7 @@ for name,source in [('reference',reference),('deferred',ROOT/'quest/quest_gl.c')
     if name=='deferred' and a.multiview:define+='#define TEST_MULTIVIEW\n'
     if name=='deferred' and a.srgb:define+='#define TEST_SRGB_TARGET\n'
     wrapper.write_text(define+f'#define RENDERER_SOURCE "{source.as_posix()}"\n#include "{(ROOT / "tests/render_fixture.c").as_posix()}"\n')
-    run_script([f'cl /nologo /std:c11 /O2 /LD /I"{out / "include"}" /I"{ROOT / "quest/include"}" /I"{ROOT / "quest"}" /I"{ROOT / "upstream/engine"}" "{wrapper}" gles.lib /Fe:{name}.dll'])
+    run_script([f'cl /nologo /std:c11 /O2 /LD /I"{out / "include"}" /I"{ROOT / "quest/include"}" /I"{ROOT / "quest"}" /I"{ROOT / "upstream/engine"}" "{wrapper}" "{ROOT / "quest/quest_scene.c"}" gles.lib /Fe:{name}.dll'])
 directory=os.add_dll_directory(str(angle));egl=C.WinDLL(str(angle/'libEGL.dll'))
 P=C.c_void_p;I=C.c_int;U=C.c_uint
 def bind(lib,name,result,*args):
@@ -81,5 +83,42 @@ if not a.reference:
     assert projected[0]!=projected[1],'Camera uniform did not change the flat layer'
     assert projected[1]==projected[2],'Flat sprites and reconstructed camera rays do not align off-centre'
     print('PASS: flat sprite grid matches reconstructed polygons pixel-for-pixel; old 500 px projection differs.')
+if not a.reference:
+    scale_render=bind(lib,'world_scale_fixture',I,C.c_float,C.c_float,C.c_float,I,I,I,P)
+    centres={};widths={};measurements=[]
+    for size in (.25,1,4):
+      for distance in (0,.4,1):
+        for head in (0,.12):
+            for eye in (0,1):
+                w=h=512
+                surface=bind(egl,'eglCreatePbufferSurface',P,P,P,P)(display,config,(I*5)(0x3057,w,0x3056,h,0x3038))
+                context=bind(egl,'eglCreateContext',P,P,P,P,P)(display,config,None,(I*3)(0x3098,3,0x3038))
+                assert surface and context and make_current(display,surface,surface,context)
+                pixels=(C.c_ubyte*(w*h*4))();assert scale_render(size,distance,head,eye,w,h,pixels)==1
+                for channel in (0,1):
+                    hits=[n//4 for n in range(0,len(pixels),4) if pixels[n+channel]>200]
+                    assert hits,'Missing world or HUD marker'
+                    centre=sum(n%w for n in hits)/len(hits);centres[size,distance,head,eye,channel]=centre
+                    base=15337/12000*size
+                    depth=base+distance if channel==1 else 2.5
+                    expected=(w-1)/2-(head+(.032 if eye else -.032))*w/2/depth
+                    assert abs(centre-expected)<.6,(size,distance,head,eye,channel,centre,expected)
+                    cy=sum(n//w for n in hits)/len(hits)
+                    expected_y=(h-1)/2+(40*base/depth if channel==1 else -80)/772.5625*h/2
+                    assert abs(cy-expected_y)<.6,(cy,expected_y)
+                    widths[size,distance,head,eye,channel]=max(n%w for n in hits)-min(n%w for n in hits)+1
+                make_current(display,None,None,None)
+                bind(egl,'eglDestroyContext',U,P,P)(display,context);bind(egl,'eglDestroySurface',U,P,P)(display,surface)
+            disparity=centres[size,distance,head,0,1]-centres[size,distance,head,1,1]
+            measurements.append(dict(scale=size,view_distance_metres=distance,head_metres=head,world_disparity_pixels=disparity))
+    assert widths[1,1,0,0,1]<widths[1,.4,0,0,1]<widths[1,0,0,0,1],'Camera distance did not visibly shrink the cover-depth marker'
+    for head in (0,.12):
+        for eye in (0,1):
+            for size in (.25,1,4):
+                for distance in (0,.4,1):
+                    assert centres[size,distance,head,eye,0]==centres[1,0,head,eye,0],'HUD moved with world settings'
+                    assert widths[size,distance,head,eye,0]==widths[1,0,head,eye,0],'HUD resized with world settings'
+    (out/('scale-multiview.json' if a.multiview else 'scale-stereo.json')).write_text(json.dumps(measurements,indent=2))
+    print('PASS: measured cover depth, 25/100/400% stereo and 12 cm head parallax; view distance visibly shrinks cover without changing HUD.')
 bind(egl,'eglTerminate',U,P)(display)
 print('PASS: '+('raw sRGB target, ' if a.srgb else '')+('multiview' if a.multiview else 'deferred')+' both eyes, identity and non-identity gamma are byte-identical to reference; no GLES errors.')

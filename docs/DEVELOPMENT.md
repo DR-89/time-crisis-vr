@@ -27,6 +27,7 @@ python tests/test_patches.py
 python tests/test_gun_render.py
 python tests/test_options.py
 python tests/test_handedness.py
+python tests/test_world_scale.py
 python tests/test_color.py
 python tests/verify_apk.py
 python tests/verify_apk.py --apk artifacts/bundled/TimeCrisisVR-with-ROM.apk
@@ -85,7 +86,23 @@ regression](CRASH-FIX.md) for the reproduced failure and repair.
 For desktop render diagnostics, `TCVR_FAST=1` disables real-time pacing,
 `TCVR_CAPTURE_FRAME=600` saves a PPM on that rendered frame, and
 `TCVR_SCENE_VIEW=1` uses reconstructed world geometry instead of the normal flat
-camera. `TCVR_GEOMETRY_DIAGNOSTICS=1` reports scene distances. These are developer
+camera. `TCVR_GEOMETRY_DIAGNOSTICS=1` reports scene distances.
+`TCVR_GEOMETRY_CAPTURE_FRAME=2100` saves unscaled reconstructed vertices and
+their original screen coordinates/depth to `geometry.csv` for unit calibration.
+TC1 uses 12000 arcade units per metre. In replay frame 2100, the complete
+stage-one soldier (head mesh 628 through separate boot mesh 528) is 1.712 m high,
+the nearby floor is about 1.56 m below the camera, and the front cover is 1.28 m
+high. The previous 5000-unit calibration sampled only part of the body because
+painter sorting interleaves meshes. Preserve model IDs when measuring.
+This is an empirical calibration, not an original hardware specification.
+World geometry is transformed by `p * world_scale - (0,0,view_distance)`;
+the inverse transform must also be used for aim, before projection to arcade
+pixels. Collision and impact-depth caches remain canonical, allowing paused
+edits without rebuilding geometry. Retest stereo, head parallax, impact marks,
+and visible cover shrinkage with both single-eye and multiview rendering.
+With `TCVR_SCENE_VIEW=1`, `TCVR_SCENE_EYE_X=-0.032` and `0.032` reproduce
+a 64 mm eye separation in desktop captures (offset in real metres).
+These are developer
 environment variables, not player menu settings. `--no-dialog` suppresses startup
 error dialogs for automated tests. Use `--headless --replay FILE --frames N` for
 simulation-only regression tests without a headset.
@@ -97,3 +114,8 @@ Upstream commit: `6aaa90b4cbc7a23733e1c9f5f9a5e772a19fe23d`. The sound coverage 
 Packaging uses a fresh asset staging directory. ROM-free builds include only manifests, the generated player model and license notices; bundled builds also include the supplied ROM directory. Models and every required game chip are verified at startup. Settings and EEPROM data are private app files and are preserved on APK updates.
 
 APK signing uses a local development keystore under `.tools/`. Keep that key private and backed up if distributing updates; another key cannot replace an existing installation with `adb install -r`.
+
+v0.9.0 uses a replacement key because the original private key was unavailable
+after project restoration. The change is documented in
+[SIGNING-MIGRATION.md](SIGNING-MIGRATION.md), including backup/restore steps and
+both public certificate fingerprints. Preserve this new key for later updates.

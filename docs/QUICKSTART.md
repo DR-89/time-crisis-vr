@@ -1,5 +1,7 @@
 # Time Crisis VR — Quickstart
 
+**v0.9.0 adds world calibration:** open the left menu, then use right stick left/right for **WORLD SIZE** and left stick left/right for **VIEW DISTANCE**. Start with **100% / 40 cm** in a running level. Settings are saved, including changes while paused. Existing saved values are retained.
+
 **v0.8.4 adds adjustable gun pitch:** open options with the left menu button, then
 move the right stick up/down to change **GUN ANGLE**. Negative angles lower the
 barrel; try **-45 DEG** for a gun pointing 45 degrees too high. Click the left
@@ -9,6 +11,11 @@ investigation; see [diagnostic collection](STAGE2-REPORTS.md).
 A standalone experimental port tested on **Meta Quest 3**, with Quest 2 and Quest 3S declared in the APK, built on **[spacestate1/namco22-decompile](https://github.com/spacestate1/namco22-decompile)**. Quest 2 refresh-rate measurements remain pending. See the [README](../README.md) for full documentation.
 
 ## Install
+
+**Upgrading from v0.8.4 or earlier:** v0.9.0 uses a new APK signing key. Back up
+your settings and EEPROM before the required uninstall/reinstall; follow
+[SIGNING-MIGRATION.md](SIGNING-MIGRATION.md). An ordinary `adb install -r` cannot
+replace an installation signed with the old key. Windows needs no migration.
 
 Download the [release APK](https://github.com/DR-89/time-crisis-vr/releases) and install it with SideQuest or `adb install -r TimeCrisisVR-v0.8.4-quest.apk`. Open **Unknown sources → Time Crisis VR (Experimental)**. The complete APK prepares its bundled game files automatically; no ZIP selection is needed. For Windows, see [PCVR and desktop setup](PCVR.md).
 

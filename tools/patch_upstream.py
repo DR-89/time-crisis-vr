@@ -199,5 +199,13 @@ static size_t spr_cache_bytes;'''),
          '    glEnd();\n#ifdef TCVR\n    }\n#endif\n    glDisable(GL_BLEND);\n    glEnable(GL_ALPHA_TEST);\n    glDisable(GL_TEXTURE_2D);\n}'),
     ], marker='TCVR_IMPACT_PROJECTION')
 
+    edit('engine/ss22_gl.c', [
+        ('    qbuf[qn].order = qorder++;', '''    qbuf[qn].order = qorder++;
+#ifdef TCVR
+    /* Retain model ownership for VR geometry diagnostics. */
+    { extern int g_bbox_cur; qbuf[qn].pick_code = g_bbox_cur; }
+#endif'''),
+    ], marker='TCVR_MODEL_DIAGNOSTICS')
+
 if __name__ == '__main__':
     main()

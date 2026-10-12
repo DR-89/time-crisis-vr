@@ -8,7 +8,7 @@ import argparse, hashlib, json, os, re, shutil, subprocess, tempfile, zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
-p.add_argument('--zip',type=Path,default=ROOT/'artifacts/pc/TimeCrisisVR-v0.8.4-windows-x64.zip')
+p.add_argument('--zip',type=Path,default=ROOT/'artifacts/pc/TimeCrisisVR-v0.9.0-windows-x64.zip')
 p.add_argument('--replay',type=Path)
 p.add_argument('--frames',type=int,default=15000)
 a=p.parse_args()
@@ -25,7 +25,8 @@ with tempfile.TemporaryDirectory(prefix='tcvr-pc-test-') as temp:
     info=json.loads((game/'build-info.json').read_text())
     assert hashlib.sha256((game/'TimeCrisisVR.exe').read_bytes()).hexdigest()==info['exe_sha256']
     env=os.environ.copy();env.update(TCVR_FAST='1',TCVR_CAPTURE_FRAME='600')
-    subprocess.run([game/'TimeCrisisVR.exe','--desktop','--no-dialog','--frames','601'],env=env,check=True,timeout=45)
+    startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
+    subprocess.run([game/'TimeCrisisVR.exe','--desktop','--no-dialog','--frames','601'],env=env,startupinfo=startup,check=True,timeout=45)
     log=(game/'timecris.log').read_text()
     assert '[OPTIONS] laser ON' in log
     assert 'stop at frame 601, 0 traps' in log
@@ -35,7 +36,7 @@ with tempfile.TemporaryDirectory(prefix='tcvr-pc-test-') as temp:
     print('PASS: clean Windows ZIP, hashes, default laser, desktop GL scene, 601 simulation frames')
     if a.replay:
         shutil.copy2(a.replay,game/'regression.inputs')
-        subprocess.run([game/'TimeCrisisVR.exe','--headless','--replay','regression.inputs','--frames',str(a.frames)],check=True,timeout=180)
+        subprocess.run([game/'TimeCrisisVR.exe','--headless','--replay','regression.inputs','--frames',str(a.frames)],startupinfo=startup,check=True,timeout=180)
         log=(game/'timecris.log').read_text()
         assert f'stop at frame {a.frames}, 0 traps' in log
         assert not re.search(r'\[TRAP\]|fault [1-9]',log)
