@@ -1,5 +1,7 @@
 # Time Crisis VR — Quickstart
 
+**v0.9.3:** left menu opens options; left stick up/down selects **GRAPHICS**. Right stick left/right selects a per-eye resolution; fully restart the app to apply it. Left grip toggles texture filtering immediately (default ON). Launcher icons and banners are included.
+
 **v0.9.0 adds world calibration:** open the left menu, then use right stick left/right for **WORLD SIZE** and left stick left/right for **VIEW DISTANCE**. Start with **100% / 40 cm** in a running level. Settings are saved, including changes while paused. Existing saved values are retained.
 
 **v0.8.4 adds adjustable gun pitch:** open options with the left menu button, then

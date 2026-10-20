@@ -77,6 +77,18 @@ def main():
 #endif
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ATLAS_DIM, ATLAS_DIM, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);'''),
     ], marker='TCVR_ATLAS_ARRAY')
+    edit('engine/tex_bake.c', [
+        ('    g_bake_texels += (double)bw * bh;', '#ifdef TCVR\n    const int atlas_border = 1; /* Linear samples must never reach an adjacent slot. */\n#else\n    const int atlas_border = 0;\n#endif\n    g_bake_texels += (double)bw * bh;'),
+        ('atlas_alloc(bw, bh, &slot_page, &slot_x, &slot_y);', 'atlas_alloc(bw + atlas_border, bh + atlas_border, &slot_page, &slot_x, &slot_y);'),
+        ('bake_dst = ap->shadow + ((size_t)slot_y * ATLAS_DIM + slot_x) * 4;', 'bake_dst = ap->shadow + ((size_t)(slot_y + atlas_border) * ATLAS_DIM + slot_x + atlas_border) * 4;'),
+        ('page_dirty(slot_page, slot_x, slot_y, bw, bh);', 'page_dirty(slot_page, slot_x, slot_y, bw + atlas_border, bh + atlas_border);'),
+        ('    }\n    }\n\n    /* Upload to GL (NEAREST filtering', '    }\n    if(atlas_on() && atlas_border && apages[slot_page].shadow){\n        /* Existing right/bottom guards remain source-exact. Repeat the first\n         * column/row on the left/top, including coarse placeholder bakes. */\n        for(int y=0;y<bh;y++)memcpy(bake_dst+(size_t)y*bake_stride-4,bake_dst+(size_t)y*bake_stride,4);\n        memcpy(bake_dst-bake_stride-4,bake_dst-4,(size_t)(bw+1)*4);\n    }\n    }\n\n    /* Upload to GL (NEAREST filtering'),
+        ('(float)slot_x / ATLAS_DIM', '(float)(slot_x + atlas_border) / ATLAS_DIM'),
+        ('(float)slot_y / ATLAS_DIM', '(float)(slot_y + atlas_border) / ATLAS_DIM'),
+        ('(size_t)bw * bh * 4 :', '(size_t)(bw + atlas_border) * (bh + atlas_border) * 4 :'),
+        ('slotp->alloc_w = (uint16_t)bw; slotp->alloc_h = (uint16_t)bh;', 'slotp->alloc_w = (uint16_t)(bw + atlas_border); slotp->alloc_h = (uint16_t)(bh + atlas_border);'),
+        ('(uint32_t)(bw * bh * 4) :', '(uint32_t)((bw + atlas_border) * (bh + atlas_border) * 4) :'),
+    ], marker='TCVR_FILTER_GUTTER')
     edit('engine/ss22_gl.c', [
         ('static uint8_t *spr_buf, *txt_buf;', '''static uint8_t *spr_buf, *txt_buf;
 #ifdef TCVR

@@ -12,6 +12,7 @@ void qgl_target(int eye,unsigned framebuffer);
 void qgl_scene_begin(const uint8_t lut[3][256],int w,int h);
 void qgl_atlas_texture(unsigned texture,int page,int dimension,int pages);
 void qgl_flush(void);
+void qgl_set_texture_filter(bool enabled);
 void qgl_flat_camera(float cx,float cy,float focal);
 void qgl_pointer(V3 origin,V3 end);
 void qgl_shutdown(void);

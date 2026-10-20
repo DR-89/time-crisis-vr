@@ -1,0 +1,4 @@
+Tool mode: built-in image_gen, edit.
+Reference: Time Crisis II VR launcher icon from artifacts/app-icons.
+
+Edit the supplied square Time Crisis II VR launcher icon into a matching launcher icon for the FIRST Time Crisis VR game. Remove the giant Roman II completely, remove the red pistol, keep a single recognizable blue arcade light gun angled behind the lettering. Exact text: 'TIME CRISIS' and 'VR', no II, no other words. Retain the polished metallic italic arcade typography, blue cyan reticle, dark navy background and dramatic red/cyan accents. A clear, bold, professional square Android game icon, entire composition inside a safe margin, fills canvas edge to edge, no external rounded-corner frame. All other composition decisions should support readability at 96 pixels. This is a launcher asset for the existing VR port, not an advertisement.
