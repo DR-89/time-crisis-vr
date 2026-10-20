@@ -12,7 +12,12 @@ An experimental VR port of **Time Crisis** for **Meta Quest** and **Windows PCVR
 
 ## Current status
 
-**[v0.9.3](https://github.com/DR-89/time-crisis-vr/releases/tag/v0.9.3) — Quest ARM64 and Windows x64.** Adds saved render-resolution presets, default-on texture filtering with an immediate ON/OFF switch, and Quest launcher icons and banners. See the [release notes](docs/RELEASE_NOTES_0.9.3.md).
+**[v0.9.4](https://github.com/DR-89/time-crisis-vr/releases/tag/v0.9.4) — Quest ARM64 and Windows x64.** The default tracked weapon is now the blue Namco arcade
+pistol, matching Time Crisis II VR and Crisis Zone VR. It uses the same calibrated
+grip and muzzle, textured model and whole-gun recoil in both hands on Quest and
+PCVR. The previous pistol remains a fallback. See the [release notes](docs/RELEASE_NOTES_0.9.4.md) and [weapon details](docs/WEAPONS.md).
+
+The saved render-resolution presets, default-on texture filtering with an immediate ON/OFF switch, and Quest launcher icons and banners introduced in [v0.9.3](docs/RELEASE_NOTES_0.9.3.md) are retained.
 
 **Quest upgrade from v0.8.4 or earlier: the APK signing key has changed.**
 The original key was unavailable after restoring the project. This APK cannot
@@ -70,12 +75,12 @@ The headset is asked to run at **120 Hz** when the runtime supports it, with a s
 
 ## Download and install
 
-1. Download **`TimeCrisisVR-v0.9.3-quest3.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases).
+1. Download **`TimeCrisisVR-v0.9.4-quest3.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases).
 2. Enable developer mode on the Quest, connect it by USB and allow USB debugging.
 3. Install the APK with SideQuest or Android platform-tools:
 
    ```sh
-   adb install -r TimeCrisisVR-v0.9.3-quest3.apk
+   adb install -r TimeCrisisVR-v0.9.4-quest3.apk
    ```
 
 4. Open **Time Crisis VR (Experimental)** from the Quest library's **Unknown sources** section.
@@ -87,7 +92,7 @@ Updates signed with the same key retain settings and game data. **The v0.9.0 sig
 
 ### Windows / PCVR
 
-Extract **`TimeCrisisVR-v0.9.3-windows-x64.zip`** to a writable folder. Connect the
+Extract **`TimeCrisisVR-v0.9.4-windows-x64.zip`** to a writable folder. Connect the
 headset through your PC VR software, select an OpenXR runtime with OpenGL support,
 then open **Play VR.cmd**. **Play SteamVR.cmd** selects an installed SteamVR runtime
 for this launch only. **Play Desktop.cmd** starts mouse/keyboard play on a monitor.
@@ -241,7 +246,7 @@ Output:
 - Bundled: `artifacts/bundled/TimeCrisisVR-with-ROM.apk`
 - ROM-free: `artifacts/TimeCrisisVR-quest3-debug.apk`
 - Build metadata and SHA-256: `build-info.json` beside the corresponding APK.
-- Windows: `artifacts/pc/TimeCrisisVR-v0.9.3-windows-x64.zip` and its `.sha256` file.
+- Windows: `artifacts/pc/TimeCrisisVR-v0.9.4-windows-x64.zip` and its `.sha256` file.
 
 The bootstrap downloads pinned NDK r27c, API 34, Build Tools 35.0.0, SDL 2.30.11, OpenXR loader 1.1.43 and Ninja 1.12.1 into `.tools/`. The first build takes several minutes and multiple GB. It does not install a global Android SDK. CMake and the JDK must already be installed.
 
@@ -281,4 +286,4 @@ If you enjoy this project and would like to support further development of my VR
 
 The foundation is **[spacestate1/namco22-decompile](https://github.com/spacestate1/namco22-decompile)**, whose engine, translated game code, tooling and hardware reconstruction make this port possible. Please visit that repository for the original project and its other games.
 
-Additional components: [SDL](https://github.com/libsdl-org/SDL), [Khronos OpenXR](https://github.com/KhronosGroup/OpenXR-SDK), and [FireWarden's CC0 Lowpoly Pistol](https://opengameart.org/content/lowpoly-pistol) with an animated slide. Attribution, original copyright notices and the distinction between port code and original game content are documented in [NOTICE.md](NOTICE.md).
+Additional components: [SDL](https://github.com/libsdl-org/SDL), [Khronos OpenXR](https://github.com/KhronosGroup/OpenXR-SDK), [Martoscar's Namco Arcade Gun](https://sketchfab.com/3d-models/namco-arcade-gun-15fbd5b9add94a34b5c21746e3dd32be) (CC BY 4.0), and [FireWarden's CC0 Lowpoly Pistol](https://opengameart.org/content/lowpoly-pistol) as the animated fallback. Attribution, original copyright notices and the distinction between port code and original game content are documented in [NOTICE.md](NOTICE.md).

@@ -35,7 +35,7 @@ Only after checking the backup:
 
 ```bat
 adb uninstall org.timecrisis.quest
-adb install TimeCrisisVR-v0.9.3-quest3.apk
+adb install TimeCrisisVR-v0.9.4-quest3.apk
 adb shell am start -n org.timecrisis.quest/.MainActivity
 ```
 

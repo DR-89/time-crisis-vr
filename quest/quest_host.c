@@ -660,7 +660,7 @@ graphics_ready:
 #ifndef TCVR_PC
     multiview=eyes[0].w==eyes[1].w&&eyes[0].h==eyes[1].h&&qgl_stereo_init(SDL_GL_GetProcAddress("glFramebufferTextureMultiviewOVR"));
 #endif
-    if(!qgun_init("models/player-gun.tcgun"))goto fail;
+    if(!qgun_init("models/namco-gun.tcgun")&&!qgun_init("models/player-gun.tcgun"))goto fail;
     if(!qui_init())goto fail;
     qui_set_resolution(options.resolution,eyes[0].w,eyes[0].h);
     ss22_gl_set_gun_flash(false);eng_audio_set_gain(g->out_gain);eng_audio_open();g->snd_set_output(true);g->input_init();

@@ -13,10 +13,15 @@ with zipfile.ZipFile(apk) as z:
         digest,name=line.split('  ',1)
         data=z.read('assets/roms/'+name) if bundled else (ROOT/'build/assets/roms'/name).read_bytes()
         assert hashlib.sha256(data).hexdigest()==digest,name
-    for line in z.read('assets/models.sha256').decode().splitlines():
+    model_manifest=z.read('assets/models.sha256').decode().splitlines()
+    assert {line.split('  ',1)[1] for line in model_manifest}=={'namco-gun.tcgun','player-gun.tcgun'}
+    assert 'Martoscar' in z.read('assets/licenses/NOTICE.md').decode('utf-8')
+    for line in model_manifest:
         digest,name=line.split('  ',1);model=z.read('assets/models/'+name)
         assert hashlib.sha256(model).hexdigest()==digest,name
         assert model==(ROOT/'quest/assets/models'/name).read_bytes(),name
+        metadata=json.loads(z.read('assets/models/'+name.replace('.tcgun','.json')))
+        assert metadata['asset_sha256']==digest,name
         assert model[:8] in (b'TCGUN001',b'TCGUN002')
         vertices,indices=struct.unpack_from('<2I',model,8)
         assert 0<vertices<=100000 and 0<indices<=300000 and indices%3==0

@@ -2,6 +2,24 @@
 #include <stdint.h>
 #include "quest_gun.h"
 
+__declspec(dllexport) int namco_fixture(const char *asset,int eye,int hand,float age,int w,int h,uint8_t *out){
+    if(!qgun_init(asset))return 0;
+    V3 tip=qgun_muzzle(v3(0,0,0),(Q4){0,0,0,1});
+    if(fabsf(tip.x)>1e-6f||fabsf(tip.y-.054069425f)>1e-6f||fabsf(tip.z+.173751f)>1e-6f)return -1;
+    float v[16],p[16];
+    view_matrix(v,v3(eye==1?-.032f:eye==2?.032f:0,0,0),(Q4){0,0,0,1});projection(p,-.4f,.4f,-.4f,.4f);
+    Q4 rotation=eye==0?(Q4){0,sinf(.785398f),0,cosf(.785398f)}:(Q4){0,0,0,1};
+    V3 position=v3(hand?-.04f:.04f,-.045f,-.45f);
+    V3 before=qgun_muzzle(position,rotation);
+    if(eye==0&&(fabsf(before.x-position.x+.173751f)>1e-6f||fabsf(before.y-position.y-.054069425f)>1e-6f||fabsf(before.z-position.z)>1e-6f))return -2;
+    glViewport(0,0,w,h);glClearColor(.10f,.13f,.17f,1);glClear(GL_COLOR_BUFFER_BIT);
+    qgun_draw(v,p,position,rotation,qgun_recoil(age),0);
+    V3 after=qgun_muzzle(position,rotation);
+    if(before.x!=after.x||before.y!=after.y||before.z!=after.z)return -3;
+    glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,out);GLenum error=glGetError();
+    qgun_shutdown();return error?-(int)error:1;
+}
+
 __declspec(dllexport) int gun_fixture(const char *asset,int variant,int w,int h,uint8_t *out){
     if(!qgun_init(asset))return 0;
     /* ANGLE pbuffer already provides depth via the EGL config. */

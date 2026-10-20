@@ -1,5 +1,10 @@
 # Time Crisis VR for Windows
 
+**v0.9.4:** the blue Namco arcade pistol is the default tracked weapon, matching
+Time Crisis II VR and Crisis Zone VR. It supports both hands, saved gun angle
+and whole-gun recoil. Keep `models/namco-gun.tcgun` with the package; the older
+animated pistol remains a fallback. Attribution is included in `NOTICE.md`.
+
 **Render resolution:** open options with the **left menu button**, then use **left stick up/down** to find **GRAPHICS**. Move the **right stick left/right** to choose **Default**, **1280 x 1344**, **1680 x 1760**, **2550 x 2640**, **2940 x 3080** or **3360 x 3520** pixels per eye, matching the NFSU VR ports. Click the **left stick** to restore Default. Each change saves automatically; **fully close and restart the app** to apply it. The panel shows the active size and a restart reminder. Default preserves the previous resolution (runtime recommendation capped at 1440 pixels on the longer side on Quest, 2160 on PCVR). Unsupported presets fall back to Default. Higher resolutions require more GPU time and memory; the highest setting is not a performance recommendation. Texture filtering stays enabled by default and still switches immediately.
 
 Keyboard: **Tab** changes the options page; on **GRAPHICS**, **Left/Right** selects resolution and **Home** restores Default. Resolution presets affect OpenXR VR rendering; desktop mode continues to follow the window size.

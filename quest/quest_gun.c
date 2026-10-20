@@ -73,7 +73,7 @@ bool qgun_init(const char *path){
     index_count=(GLsizei)n[1];muzzle=v3(tip[0],tip[1],tip[2]);
     articulated=!legacy;
     ok=glGetError()==GL_NO_ERROR;
-    if(ok)fprintf(stderr,"[GUN] %s model loaded: %u vertices, %u triangles; %s\n",articulated?"Arcade pistol":"Tripo",n[0],n[1]/3,articulated?"animated slide and trigger":"textured mesh");
+    if(ok)fprintf(stderr,"[GUN] %s loaded: %u vertices, %u triangles; %s\n",path,n[0],n[1]/3,articulated?"animated slide and trigger":"textured mesh with recoil");
 done:
     fclose(f);free(vertices);free(indices);free(pixels);
     if(!ok){fprintf(stderr,"[GUN] model initialization failed\n");qgun_shutdown();}return ok;

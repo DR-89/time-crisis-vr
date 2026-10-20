@@ -104,7 +104,7 @@ XRAPI_ATTR XrResult XRAPI_CALL xrStopHapticFeedback(XrSession s,const XrHapticAc
 }
 void eng_audio_set_volume(int v){(void)v;}
 void ss22_snd_inputs(uint16_t bits,unsigned w,unsigned p1,unsigned p2){(void)w;(void)p1;(void)p2;arcade_bits=bits;}
-V3 qgun_muzzle(V3 p,Q4 q){return add(p,rotate(q,v3(0,0,-.1f)));}
+V3 qgun_muzzle(V3 p,Q4 q){return add(p,rotate(q,v3(0,.054069425f,-.173751f)));}
 bool qvr_aim(V3 p,V3 d,float *x,float *y,V3 *hit){*x=p.x+.5f;*y=.5f;*hit=add(p,mul(d,2.f));return true;}
 static void tick(void){sync_input(100,true,1.7f);ss22_input_update();}
 static void click(XrAction a,int h){buttons[id(a)][h]=true;tick();buttons[id(a)][h]=false;tick();}
@@ -228,7 +228,7 @@ int main(void){
     for(int h=0;h<2;h++){
         select_weapon_hand(h);tick();V3 direction=rotate(gun_rotation,v3(0,0,-1));
         assert(fabsf(direction.y)<1e-6f&&fabsf(direction.z+1)<1e-6f);
-        assert(fabsf(gun_origin.y-gun_position.y)<1e-6f&&fabsf(gun_origin.z-gun_position.z+.1f)<1e-6f);
+        assert(fabsf(gun_origin.y-gun_position.y-.054069425f)<1e-6f&&fabsf(gun_origin.z-gun_position.z+.173751f)<1e-6f);
         assert(fabsf(gun_hit.y-gun_origin.y)<1e-6f&&fabsf(gun_hit.z-gun_origin.z+2)<1e-6f);
     }
     /* Apply pitch in controller space after yaw, not around the world's X axis. */

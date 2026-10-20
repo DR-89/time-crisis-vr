@@ -1,5 +1,9 @@
 # Time Crisis VR — Quickstart
 
+**v0.9.4:** the blue Namco arcade pistol is now the default weapon, matching
+Time Crisis II VR and Crisis Zone VR. It works in either hand with the existing
+gun-angle setting. The new model installs automatically when updating the APK.
+
 **v0.9.3:** left menu opens options; left stick up/down selects **GRAPHICS**. Right stick left/right selects a per-eye resolution; fully restart the app to apply it. Left grip toggles texture filtering immediately (default ON). Launcher icons and banners are included.
 
 **v0.9.0 adds world calibration:** open the left menu, then use right stick left/right for **WORLD SIZE** and left stick left/right for **VIEW DISTANCE**. Start with **100% / 40 cm** in a running level. Settings are saved, including changes while paused. Existing saved values are retained.
@@ -19,7 +23,7 @@ your settings and EEPROM before the required uninstall/reinstall; follow
 [SIGNING-MIGRATION.md](SIGNING-MIGRATION.md). An ordinary `adb install -r` cannot
 replace an installation signed with the old key. Windows needs no migration.
 
-Download the [release APK](https://github.com/DR-89/time-crisis-vr/releases) and install it with SideQuest or `adb install -r TimeCrisisVR-v0.8.4-quest.apk`. Open **Unknown sources → Time Crisis VR (Experimental)**. The complete APK prepares its bundled game files automatically; no ZIP selection is needed. For Windows, see [PCVR and desktop setup](PCVR.md).
+Download the [release APK](https://github.com/DR-89/time-crisis-vr/releases) and install it with SideQuest or `adb install -r TimeCrisisVR-v0.9.4-quest3.apk`. Open **Unknown sources → Time Crisis VR (Experimental)**. The complete APK prepares its bundled game files automatically; no ZIP selection is needed. For Windows, see [PCVR and desktop setup](PCVR.md).
 
 After the arcade startup, press **A right** (or **X left** with DEFAULT HAND set to LEFT), wait briefly for three credits, then press **either trigger** to select that hand and start.
 
