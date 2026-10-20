@@ -1,6 +1,12 @@
 # Time Crisis VR for Windows
 
-**v0.9.0:** calibrated physical world scale and saved **WORLD SIZE (25–400%)** / **VIEW DISTANCE (0–100 cm)**. Start with 100% / 40 cm. In options, right stick left/right changes scale; left stick left/right changes distance. Keyboard Left/Right and Page Up/Page Down do the same; End restores 100%. Stereo, head parallax, aiming and impacts use the same transform. This preserves the tracked gun, HUD and physical controller size.
+**Render resolution:** open options with the **left menu button**, then use **left stick up/down** to find **GRAPHICS**. Move the **right stick left/right** to choose **Default**, **1280 x 1344**, **1680 x 1760**, **2550 x 2640**, **2940 x 3080** or **3360 x 3520** pixels per eye, matching the NFSU VR ports. Click the **left stick** to restore Default. Each change saves automatically; **fully close and restart the app** to apply it. The panel shows the active size and a restart reminder. Default preserves the previous resolution (runtime recommendation capped at 1440 pixels on the longer side on Quest, 2160 on PCVR). Unsupported presets fall back to Default. Higher resolutions require more GPU time and memory; the highest setting is not a performance recommendation. Texture filtering stays enabled by default and still switches immediately.
+
+Keyboard: **Tab** changes the options page; on **GRAPHICS**, **Left/Right** selects resolution and **Home** restores Default. Resolution presets affect OpenXR VR rendering; desktop mode continues to follow the window size.
+
+**Texture filtering:** texture filtering defaults to ON and is saved in `quest-options.cfg`. With options open, squeeze the **left grip**, or press **F** on the keyboard, to toggle it immediately. The left grip keeps its cover function during gameplay.
+
+**v0.9.0:** calibrated physical world scale and saved **WORLD SIZE (25â€“400%)** / **VIEW DISTANCE (0â€“100 cm)**. Start with 100% / 40 cm. In options, right stick left/right changes scale; left stick left/right changes distance. Keyboard Left/Right and Page Up/Page Down do the same; End restores 100%. Stereo, head parallax, aiming and impacts use the same transform. This preserves the tracked gun, HUD and physical controller size.
 
 **v0.8.4:** saved gun pitch from -60 to +60 degrees, adjustable in options.
 The corresponding Quest 3 test build was confirmed working. The reports in
@@ -159,3 +165,9 @@ Windows package passes clean extraction, hashes and 601 desktop simulation
 frames. A recorded Quest session also renders through 34,600 frames with no CPU
 traps or reported graphics/DSP/sound faults, including a Stage 2 Clear screen.
 A new live PCVR check of these changes remains pending.
+
+## Support development
+
+If you enjoy this project and would like to support further development of my VR ports, you can support my work on Patreon:
+
+[https://www.patreon.com/c/OpenSourceDevDirk](https://www.patreon.com/c/OpenSourceDevDirk)

@@ -37,12 +37,14 @@ for name,source in [('reference',reference),('deferred',ROOT/'quest/quest_gl.c')
     if name=='reference':
         if not a.reference:define='#define QGL_TEST_IMMEDIATE\n'
         elif 'void qgl_flush(void)' not in reference.read_text():define='#define IMMEDIATE_REFERENCE\n'
+    if 'void qgl_set_texture_filter(' in source.read_text():define+='#define TEST_TEXTURE_FILTER\n'
     if 'void qgl_scene_begin(' in source.read_text():define+='#define TEST_SCENE_TARGET\n'
     if 'void qgl_atlas_texture(' in source.read_text():define+='#define TEST_ATLAS_ARRAY\n'
     if name=='deferred' and a.multiview:define+='#define TEST_MULTIVIEW\n'
     if name=='deferred' and a.srgb:define+='#define TEST_SRGB_TARGET\n'
     wrapper.write_text(define+f'#define RENDERER_SOURCE "{source.as_posix()}"\n#include "{(ROOT / "tests/render_fixture.c").as_posix()}"\n')
-    run_script([f'cl /nologo /std:c11 /O2 /LD /I"{out / "include"}" /I"{ROOT / "quest/include"}" /I"{ROOT / "quest"}" /I"{ROOT / "upstream/engine"}" "{wrapper}" "{ROOT / "quest/quest_scene.c"}" gles.lib /Fe:{name}.dll'])
+    atlas_source='\"'+str(ROOT/'tests/atlas_filter_fixture.c')+'\"' if 'void qgl_set_texture_filter(' in source.read_text() else ''
+    run_script([f'cl /nologo /std:c11 /O2 /LD /I"{out / "include"}" /I"{ROOT / "quest/include"}" /I"{ROOT / "quest"}" /I"{ROOT / "upstream/engine"}" "{wrapper}" "{ROOT / "quest/quest_scene.c"}" {atlas_source} gles.lib /Fe:{name}.dll'])
 directory=os.add_dll_directory(str(angle));egl=C.WinDLL(str(angle/'libEGL.dll'))
 P=C.c_void_p;I=C.c_int;U=C.c_uint
 def bind(lib,name,result,*args):
@@ -120,5 +122,28 @@ if not a.reference:
                     assert widths[size,distance,head,eye,0]==widths[1,0,head,eye,0],'HUD resized with world settings'
     (out/('scale-multiview.json' if a.multiview else 'scale-stereo.json')).write_text(json.dumps(measurements,indent=2))
     print('PASS: measured cover depth, 25/100/400% stereo and 12 cm head parallax; view distance visibly shrinks cover without changing HUD.')
+if not a.reference:
+    filter_render=bind(lib,'texture_filter_fixture',I,I,I,P)
+    for atlas in (0,1):
+        for world in (0,1):
+            surface=bind(egl,'eglCreatePbufferSurface',P,P,P,P)(display,config,(I*5)(0x3057,256,0x3056,256,0x3038))
+            context=bind(egl,'eglCreateContext',P,P,P,P,P)(display,config,None,(I*3)(0x3098,3,0x3038))
+            assert make_current(display,surface,surface,context)
+            colours=(C.c_ubyte*12)();assert filter_render(atlas,world,colours)==1
+            for step in range(3):
+                expected=128 if world and step!=1 else 255
+                assert all(abs(colours[step*4+c]-expected)<=1 for c in range(3)),(atlas,world,step,list(colours))
+                assert colours[step*4+3]==255
+            make_current(display,None,None,None)
+            bind(egl,'eglDestroyContext',U,P,P)(display,context);bind(egl,'eglDestroySurface',U,P,P)(display,surface)
+    print('PASS: world filtering ON/OFF/ON without re-upload, 2D and array textures, unchanged flat layers, queued-state barriers and sampler isolation.')
+if not a.reference:
+    surface=bind(egl,'eglCreatePbufferSurface',P,P,P,P)(display,config,(I*5)(0x3057,64,0x3056,64,0x3038))
+    context=bind(egl,'eglCreateContext',P,P,P,P,P)(display,config,None,(I*3)(0x3098,3,0x3038))
+    assert make_current(display,surface,surface,context)
+    result=bind(lib,'atlas_filter_fixture',I)();assert result==1,result
+    make_current(display,None,None,None)
+    bind(egl,'eglDestroyContext',U,P,P)(display,context);bind(egl,'eglDestroySurface',U,P,P)(display,surface)
+    print('PASS: production coarse atlas bakes have isolated colour borders, correct cache offsets/allocation and no neighbour bleed under linear sampling.')
 bind(egl,'eglTerminate',U,P)(display)
 print('PASS: '+('raw sRGB target, ' if a.srgb else '')+('multiview' if a.multiview else 'deferred')+' both eyes, identity and non-identity gamma are byte-identical to reference; no GLES errors.')

@@ -84,10 +84,12 @@ def package(assets):
         manifest=[line for line in (assets/'roms.sha256').read_text().splitlines() if line.split('  ',1)[1]!='c71.bin']
         assert len(manifest)==31
         (public/'roms.sha256').write_text('\n'.join(manifest)+'\n',encoding='ascii')
-        run([bt/'aapt2.exe','link','--manifest',package_manifest(args.bundle_roms),'-I',android,'-A',public,'-o',base])
+        resources=BUILD/'launcher-res.zip'
+        run([bt/'aapt2.exe','compile','--dir',ROOT/'quest/res','-o',resources])
+        run([bt/'aapt2.exe','link','--manifest',package_manifest(args.bundle_roms),'-I',android,'-A',public,resources,'-o',base])
     strip=ROOT/'.tools/ndk/android-ndk-r27c/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-strip.exe'
     libs=BUILD/'package-libs';libs.mkdir(exist_ok=True)
-    for name,source in [('libmain.so',BUILD/'native/libmain.so'),('libSDL2.so',BUILD/'native/sdl/libSDL2.so'),('libopenxr_loader.so',ROOT/'.tools/openxr/prefab/modules/openxr_loader/libs/android.arm64-v8a/libopenxr_loader.so')]:
+    for name,source in [('libmain.so',args.native_dir/'libmain.so'),('libSDL2.so',args.native_dir/'sdl/libSDL2.so'),('libopenxr_loader.so',ROOT/'.tools/openxr/prefab/modules/openxr_loader/libs/android.arm64-v8a/libopenxr_loader.so')]:
         run([strip,'--strip-unneeded','-o',libs/name,source])
     with zipfile.ZipFile(base,'a',zipfile.ZIP_DEFLATED) as z:
         if not args.bundle_roms:assert not any(n.startswith('assets/roms/') or n.endswith('timecris.zip') for n in z.namelist())
@@ -107,7 +109,7 @@ def package(assets):
     print(json.dumps(report,indent=2))
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--rom',type=Path,default=Path.home()/'Downloads/timecris.zip');p.add_argument('--jobs',type=int,default=2);p.add_argument('--package-only',action='store_true');p.add_argument('--skip-prepare',action='store_true');p.add_argument('--bundle-roms',action='store_true',help='Include the supplied ROM files in the APK');args=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--rom',type=Path,default=Path.home()/'Downloads/timecris.zip');p.add_argument('--jobs',type=int,default=2);p.add_argument('--package-only',action='store_true');p.add_argument('--skip-prepare',action='store_true');p.add_argument('--bundle-roms',action='store_true',help='Include the supplied ROM files in the APK');p.add_argument('--native-dir',type=Path,default=BUILD/'native',help='CMake build directory used for native compilation and packaging');args=p.parse_args();args.native_dir=args.native_dir.resolve()
     if not args.rom.is_file():p.error('ROM not found: '+str(args.rom))
     BUILD.mkdir(exist_ok=True)
     if not args.package_only:
@@ -116,7 +118,7 @@ if __name__=='__main__':
         assets=BUILD/'assets' if args.skip_prepare else prepare(args.rom)
         prepare_sound()
         ndk=ROOT/'.tools/ndk/android-ndk-r27c'
-        run(['cmake','-Wno-dev','-Wno-deprecated','-S',ROOT/'quest','-B',BUILD/'native','-G','Ninja','-DCMAKE_MAKE_PROGRAM='+str(ROOT/'.tools/ninja/ninja.exe'),'-DCMAKE_TOOLCHAIN_FILE='+str(ndk/'build/cmake/android.toolchain.cmake'),'-DANDROID_ABI=arm64-v8a','-DANDROID_PLATFORM=android-29','-DANDROID_STL=c++_static','-DCMAKE_BUILD_TYPE=Release'])
-        run(['cmake','--build',BUILD/'native','--parallel',args.jobs])
+        run(['cmake','-Wno-dev','-Wno-deprecated','-S',ROOT/'quest','-B',args.native_dir,'-G','Ninja','-DCMAKE_MAKE_PROGRAM='+str(ROOT/'.tools/ninja/ninja.exe'),'-DCMAKE_TOOLCHAIN_FILE='+str(ndk/'build/cmake/android.toolchain.cmake'),'-DANDROID_ABI=arm64-v8a','-DANDROID_PLATFORM=android-29','-DANDROID_STL=c++_static','-DCMAKE_BUILD_TYPE=Release'])
+        run(['cmake','--build',args.native_dir,'--parallel',args.jobs])
     else:assets=BUILD/'assets'
     package(assets)

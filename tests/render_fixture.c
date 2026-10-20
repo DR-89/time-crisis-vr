@@ -178,3 +178,38 @@ __declspec(dllexport) int render_fixture(int variant,int w,int h,uint8_t*out){
 #endif
     return ok;
 }
+
+#ifdef TEST_TEXTURE_FILTER
+/* Same world texture switches without a re-upload; flat layers remain point
+ * sampled and sampler bindings must not leak into the gun, menu or gamma pass. */
+__declspec(dllexport) int texture_filter_fixture(int atlas,int world,uint8_t *out){
+    active=0;texture_on[0]=texture_on[1]=0;rgb_scale=1;alpha_on=alpha_replace=blend_on=0;
+    if(!qgl_init())return 0;
+    float view[16],proj[16];view_matrix(view,v3(0,0,0),(Q4){0,0,0,1});projection(proj,-.65f,.65f,-.65f,.65f);
+    qgl_eye(view,proj);qgl_flat_camera(320,240,500);glViewport(0,0,256,256);
+    glDisable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);glDisable(GL_SCISSOR_TEST);qglColorMask(1,1,1,1);
+    GLuint tex,samplers[2];glGenTextures(1,&tex);qglBindTexture(GL_TEXTURE_2D,tex);
+    if(atlas)qgl_atlas_texture(tex,0,2,1);
+    const uint8_t colours[16]={255,0,0,255,0,255,0,255,0,0,255,255,255,255,255,255};
+    qglTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,2,2,0,GL_RGBA,GL_UNSIGNED_BYTE,colours);
+    qglTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);qglTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+    qglEnable(GL_TEXTURE_2D);
+    glGenSamplers(2,samplers);
+    for(int i=0;i<2;i++){glSamplerParameteri(samplers[i],GL_TEXTURE_MIN_FILTER,GL_NEAREST);glSamplerParameteri(samplers[i],GL_TEXTURE_MAG_FILTER,GL_NEAREST);glBindSampler(i*2,samplers[i]);}
+    Vertex v[6];const int corner[6]={0,1,2,0,2,3};
+    for(int i=0;i<6;i++){
+        int j=corner[i];float x=j==1||j==2?1:-1,y=j>=2?-1:1;
+        v[i]=(Vertex){{world?x:320+x*180,world?y:240-y*180,world?-2:0,world?1:0},{1,1,1,1},{.5f,.5f,0,1}};
+    }
+    qgl_set_texture_filter(true);
+    for(int pass=0;pass<3;pass++){
+        glClearColor(0,0,0,1);qglClear(GL_COLOR_BUFFER_BIT);draw(v,6,GL_TRIANGLES);
+        if(pass<2)qgl_set_texture_filter(pass==1);else qgl_flush();
+        glReadPixels(128,128,1,1,GL_RGBA,GL_UNSIGNED_BYTE,out+pass*4);
+        for(int i=0;i<2;i++){GLint actual;glActiveTexture(GL_TEXTURE0+i*2);glGetIntegerv(GL_SAMPLER_BINDING,&actual);if(actual!=(GLint)samplers[i])return -2;}
+        glActiveTexture(GL_TEXTURE0);
+    }
+    glBindSampler(0,0);glBindSampler(2,0);glDeleteSamplers(2,samplers);qglDeleteTextures(1,&tex);
+    int ok=glGetError()?0:1;qgl_shutdown();return ok;
+}
+#endif

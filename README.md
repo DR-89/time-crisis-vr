@@ -4,7 +4,7 @@ An experimental VR port of **Time Crisis** for **Meta Quest** and **Windows PCVR
 
 **Built on [spacestate1/namco22-decompile](https://github.com/spacestate1/namco22-decompile).** This project adds the Android/OpenXR host, Quest renderer, VR aiming, player weapon and controls to that reconstruction. The original arcade logic and shared engine come from upstream; this is not an independent recreation of the game.
 
-[Downloads](https://github.com/DR-89/time-crisis-vr/releases) · [Quest quickstart](docs/QUICKSTART.md) · [Windows / PCVR](docs/PCVR.md) · [Technical notes](docs/DEVELOPMENT.md) · [Attribution](NOTICE.md)
+[Downloads](https://github.com/DR-89/time-crisis-vr/releases) Â· [Quest quickstart](docs/QUICKSTART.md) Â· [Windows / PCVR](docs/PCVR.md) Â· [Technical notes](docs/DEVELOPMENT.md) Â· [Attribution](NOTICE.md)
 
 ![Time Crisis running on Quest 3, with the tracked player pistol](docs/images/gameplay.png)
 
@@ -12,18 +12,18 @@ An experimental VR port of **Time Crisis** for **Meta Quest** and **Windows PCVR
 
 ## Current status
 
-**[v0.9.0](https://github.com/DR-89/time-crisis-vr/releases/tag/v0.9.0) — experimental, Quest ARM64 and Windows x64.** Corrects the oversized VR world and adds saved world-size and view-distance controls. The scale affects stereo depth, head-motion parallax, aiming and world impact marks together, including edits while paused.
+**[v0.9.3](https://github.com/DR-89/time-crisis-vr/releases/tag/v0.9.3) — Quest ARM64 and Windows x64.** Adds saved render-resolution presets, default-on texture filtering with an immediate ON/OFF switch, and Quest launcher icons and banners. See the [release notes](docs/RELEASE_NOTES_0.9.3.md).
 
 **Quest upgrade from v0.8.4 or earlier: the APK signing key has changed.**
 The original key was unavailable after restoring the project. This APK cannot
 update the old signed installation in place. **Back up settings and EEPROM
-before uninstalling**, then install v0.9.0 and restore the backup. See the
+before uninstalling**, then install the current APK and restore the backup. See the
 [backup and migration instructions](docs/SIGNING-MIGRATION.md). Windows is unaffected.
 
 Changes in v0.9.0:
 
-- **WORLD SIZE: 25–400%**, in 5-point steps with the right stick left/right in options. The calibrated 100% starting point places a complete opening soldier at about 1.71 m and nearby cover at about 1.28 m.
-- **VIEW DISTANCE: 0–100 cm**, in 5 cm steps with the left stick left/right. The default is 40 cm, giving nearby cover more clearance without shrinking figures.
+- **WORLD SIZE: 25â€“400%**, in 5-point steps with the right stick left/right in options. The calibrated 100% starting point places a complete opening soldier at about 1.71 m and nearby cover at about 1.28 m.
+- **VIEW DISTANCE: 0â€“100 cm**, in 5 cm steps with the left stick left/right. The default is 40 cm, giving nearby cover more clearance without shrinking figures.
 - Head tracking, controller/gun size, HUD and physical-ducking thresholds stay in real metres. Original arcade simulation timing is retained.
 - Restore your saved settings after the signing-key migration; later updates with the new key retain them. For a fresh comparison, use **100% / 40 cm** in a running level; use 0 cm for the original arcade-camera position.
 - Automated tests cover stereo, surface aiming, impact placement, paused changes, settings and both hand layouts. The calibrated test build was exercised on Quest 3; a full-game and sustained-performance assessment remains pending.
@@ -70,12 +70,12 @@ The headset is asked to run at **120 Hz** when the runtime supports it, with a s
 
 ## Download and install
 
-1. Download **`TimeCrisisVR-v0.9.0-quest.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases).
+1. Download **`TimeCrisisVR-v0.9.3-quest3.apk`** from [Releases](https://github.com/DR-89/time-crisis-vr/releases).
 2. Enable developer mode on the Quest, connect it by USB and allow USB debugging.
 3. Install the APK with SideQuest or Android platform-tools:
 
    ```sh
-   adb install -r TimeCrisisVR-v0.9.0-quest.apk
+   adb install -r TimeCrisisVR-v0.9.3-quest3.apk
    ```
 
 4. Open **Time Crisis VR (Experimental)** from the Quest library's **Unknown sources** section.
@@ -87,7 +87,7 @@ Updates signed with the same key retain settings and game data. **The v0.9.0 sig
 
 ### Windows / PCVR
 
-Extract **`TimeCrisisVR-v0.9.0-windows-x64.zip`** to a writable folder. Connect the
+Extract **`TimeCrisisVR-v0.9.3-windows-x64.zip`** to a writable folder. Connect the
 headset through your PC VR software, select an OpenXR runtime with OpenGL support,
 then open **Play VR.cmd**. **Play SteamVR.cmd** selects an installed SteamVR runtime
 for this launch only. **Play Desktop.cmd** starts mouse/keyboard play on a monitor.
@@ -95,7 +95,7 @@ Keep the complete extracted folder together. See [PCVR setup and controls](docs/
 
 ### Optional ROM-free builds
 
-The build tools can also create an APK without game files. Only for such a build, select your own **`timecris.zip` — Time Crisis World TS2 Ver.B** in the first-run setup screen. A matching ZIP can also be copied via USB:
+The build tools can also create an APK without game files. Only for such a build, select your own **`timecris.zip` â€” Time Crisis World TS2 Ver.B** in the first-run setup screen. A matching ZIP can also be copied via USB:
 
 ```powershell
 ./Install-ROM.ps1 -Rom 'C:\path\to\timecris.zip'
@@ -104,6 +104,10 @@ The build tools can also create an APK without game files. Only for such a build
 The importer verifies every required chip by SHA-256 and accepts checksum-matching older chip names. Other regional/program revisions are not interchangeable. No ROM files are downloaded by the app. No extra BIOS file is required.
 
 ## Controls
+
+**Render resolution:** open options with the **left menu button**, then use **left stick up/down** to find **GRAPHICS**. Move the **right stick left/right** to choose **Default**, **1280 x 1344**, **1680 x 1760**, **2550 x 2640**, **2940 x 3080** or **3360 x 3520** pixels per eye, matching the NFSU VR ports. Click the **left stick** to restore Default. Each change saves automatically; **fully close and restart the app** to apply it. The panel shows the active size and a restart reminder. Default preserves the previous resolution (runtime recommendation capped at 1440 pixels on the longer side on Quest, 2160 on PCVR). Unsupported presets fall back to Default. Higher resolutions require more GPU time and memory; the highest setting is not a performance recommendation. Texture filtering stays enabled by default and still switches immediately.
+
+**Texture filtering:** open the VR options with the **left menu button**, then squeeze and release the **left grip** to switch **TEXTURE FILTERING: ON / OFF**. It defaults to **ON**, including when upgrading an older settings file, and saves automatically. Changes apply immediately; no restart is needed. This control uses the physical left controller in either handedness layout. During gameplay, grips still operate cover. Filtering smooths world textures; HUD and text retain their existing sampling.
 
 | Action | Default hand: right | Default hand: left |
 | --- | --- | --- |
@@ -196,9 +200,9 @@ A two-minute active gameplay test of **v0.6.0** on Quest 3, with both controller
 | Requested / observed display rate | 120 Hz |
 | Mean / median runtime FPS | 120.017 / 120 |
 | Lowest one-second FPS sample | 115 |
-| Repeated/late frames reported by runtime | 293 / 14,400 nominal frames — **2.035%** |
+| Repeated/late frames reported by runtime | 293 / 14,400 nominal frames â€” **2.035%** |
 | Mean / p95 runtime CPU + GPU time | 5.21 / 6.84 ms |
-| Per-eye render resolution | 1374 × 1440 |
+| Per-eye render resolution | 1374 Ã— 1440 |
 
 One-second FPS counters can read slightly above 120 due to sample boundaries. They do not prove that every frame arrived on time. Short hitches remain, particularly on first loading or new textures. New textures may briefly appear coarser while the existing texture budget refines them. These results predate the menu/ducking/import changes and are **not a benchmark of v0.8.0 or PCVR**. See [performance details](docs/PERFORMANCE.md).
 
@@ -237,7 +241,7 @@ Output:
 - Bundled: `artifacts/bundled/TimeCrisisVR-with-ROM.apk`
 - ROM-free: `artifacts/TimeCrisisVR-quest3-debug.apk`
 - Build metadata and SHA-256: `build-info.json` beside the corresponding APK.
-- Windows: `artifacts/pc/TimeCrisisVR-v0.9.0-windows-x64.zip` and its `.sha256` file.
+- Windows: `artifacts/pc/TimeCrisisVR-v0.9.3-windows-x64.zip` and its `.sha256` file.
 
 The bootstrap downloads pinned NDK r27c, API 34, Build Tools 35.0.0, SDL 2.30.11, OpenXR loader 1.1.43 and Ninja 1.12.1 into `.tools/`. The first build takes several minutes and multiple GB. It does not install a global Android SDK. CMake and the JDK must already be installed.
 
@@ -266,6 +270,12 @@ adb logcat -s TCVR TCVR-ROM SDL OpenXR
 ```
 
 Tests that render through ANGLE currently use the ANGLE DLLs installed with VS Code on Windows and require MSVC. They do not emulate a Quest headset. Report bugs with the APK version, headset model, cover mode, scene and relevant log excerpts; do not attach ROMs or signing keys to issues.
+
+## Support development
+
+If you enjoy this project and would like to support further development of my VR ports, you can support my work on Patreon:
+
+[https://www.patreon.com/c/OpenSourceDevDirk](https://www.patreon.com/c/OpenSourceDevDirk)
 
 ## Credits
 

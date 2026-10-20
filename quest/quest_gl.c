@@ -11,6 +11,8 @@ static GLuint program,vao,vbo,post_program,post_tex,post_copy_fb,lut_tex;
 static GLuint atlas_texture,atlas_ids[28];
 static int atlas_dimension,atlas_pages;
 static bool atlas_unavailable;
+static bool texture_filtering=true;
+static GLuint linear_sampler;
 enum { U_VIEW,U_PROJ,U_TEX,U_TEXTURED,U_ALPHA,U_FOG,U_REPLACE,U_SCALE,U_THRESHOLD,U_FOG_COLOR,U_FLAT_CAMERA,U_COUNT };
 static float flat_camera[4]={320,240,.005f,2.5f};
 static GLint uniforms[U_COUNT],post_screen,post_lut;
@@ -32,7 +34,7 @@ static const char *uniform_names[]={"view","proj","tex","textured","alphaTest","
  * barriers because the original atlas and sprite texture can be reused. */
 typedef struct {
     GLuint texture;GLenum mode,src,dst;
-    int textured,alpha,fog,replace,blend;
+    int textured,alpha,fog,replace,blend,filter;
     GLboolean mask[4];float scale,threshold,fog_color[3];
 } QDrawState;
 typedef struct { QDrawState state;int first,count; } Command;
@@ -73,6 +75,11 @@ bool qgl_init(void) {
     for(int i=0;i<U_COUNT;i++)uniforms[i]=mono_uniforms[i]=glGetUniformLocation(program,uniform_names[i]);
     post_screen=glGetUniformLocation(post_program,"screenTex");post_lut=glGetUniformLocation(post_program,"lut");
     glGenVertexArrays(1,&vao);glGenBuffers(1,&vbo);
+    glGenSamplers(1,&linear_sampler);
+    glSamplerParameteri(linear_sampler,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    glSamplerParameteri(linear_sampler,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+    glSamplerParameteri(linear_sampler,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+    glSamplerParameteri(linear_sampler,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
     glBindVertexArray(vao);for(int i=0;i<3;i++)glEnableVertexAttribArray(i);
     glGenTextures(1,&post_tex);glGenTextures(1,&lut_tex);
     glUseProgram(program);glUniform1i(glGetUniformLocation(program,"atlasTex"),2);
@@ -203,15 +210,22 @@ void qgl_flat_camera(float cx,float cy,float focal){
     if(!memcmp(next,flat_camera,sizeof next))return;
     qgl_flush();memcpy(flat_camera,next,sizeof next);
 }
+void qgl_set_texture_filter(bool enabled){
+    if(texture_filtering==enabled)return;
+    qgl_flush();texture_filtering=enabled;
+}
 void qgl_flush(void){
     if(!command_count)return;
     glUseProgram(program);glBindVertexArray(vao);glBindBuffer(GL_ARRAY_BUFFER,vbo);
     glUniform4fv(uniforms[U_FLAT_CAMERA],1,flat_camera);
     glBufferData(GL_ARRAY_BUFFER,(GLsizeiptr)stream_count*sizeof(Vertex),stream,GL_STREAM_DRAW);
     for(int i=0;i<3;i++)glVertexAttribPointer(i,4,GL_FLOAT,GL_FALSE,sizeof(Vertex),(void*)(size_t)(i*16));
-    glActiveTexture(GL_TEXTURE0);
+    GLint old_sampler0,old_sampler2;
+    glActiveTexture(GL_TEXTURE2);glGetIntegerv(GL_SAMPLER_BINDING,&old_sampler2);
+    glActiveTexture(GL_TEXTURE0);glGetIntegerv(GL_SAMPLER_BINDING,&old_sampler0);
     for(size_t i=0;i<command_count;i++){
         const Command *cmd=&commands[i];const QDrawState *s=&cmd->state,*prev=i?&commands[i-1].state:NULL;
+        if(!prev||s->filter!=prev->filter){glBindSampler(0,s->filter?linear_sampler:0);glBindSampler(2,s->filter?linear_sampler:0);}
         if(!prev||s->texture!=prev->texture)glBindTexture(GL_TEXTURE_2D,s->texture);
         if(!prev||s->blend!=prev->blend){if(s->blend)glEnable(GL_BLEND);else glDisable(GL_BLEND);}
         if(!prev||s->src!=prev->src||s->dst!=prev->dst)glBlendFunc(s->src,s->dst);
@@ -226,6 +240,7 @@ void qgl_flush(void){
         glDrawArrays(s->mode,cmd->first,cmd->count);
     }
     glBindTexture(GL_TEXTURE_2D,bindings[0]);glActiveTexture(active?GL_TEXTURE1:GL_TEXTURE0);
+    glBindSampler(0,old_sampler0);glBindSampler(2,old_sampler2);
     command_count=stream_count=0;
 }
 static void draw(const Vertex *v,int n,GLenum mode) {
@@ -236,6 +251,7 @@ static void draw(const Vertex *v,int n,GLenum mode) {
     QDrawState s;memset(&s,0,sizeof s);
     s.texture=bindings[0];s.mode=mode;s.src=blend_src;s.dst=blend_dst;s.blend=blend_on;
     s.textured=texture_on[0];s.alpha=alpha_on;s.fog=texture_on[1];s.replace=alpha_replace;
+    s.filter=texture_filtering&&s.textured&&v[0].p[3]>.5f;
     int layer=s.textured?atlas_layer(s.texture):-1;
     /* Layer indices ride in the previously unused texture R coordinate. Atlas
      * page changes no longer split a painter-ordered batch. */
@@ -345,6 +361,7 @@ void eng_post_lut(const uint8_t lut[3][256],int w,int h){
 void qgl_shutdown(void){
     glDeleteFramebuffers(1,&post_copy_fb);post_copy_fb=0;
     if(multi_active)qgl_stereo_end();
+    glDeleteSamplers(1,&linear_sampler);linear_sampler=0;
     glDeleteProgram(multi_program);glDeleteProgram(multi_post);glDeleteTextures(1,&multi_texture);glDeleteTextures(1,&multi_lut);glDeleteFramebuffers(1,&multi_fb);
     multi_program=multi_post=multi_texture=multi_fb=multi_lut=0;multi_w=multi_h=0;multi_lut_valid=false;framebuffer_multiview=NULL;
     glDeleteTextures(1,&atlas_texture);atlas_texture=0;atlas_dimension=atlas_pages=0;atlas_unavailable=false;memset(atlas_ids,0,sizeof atlas_ids);
