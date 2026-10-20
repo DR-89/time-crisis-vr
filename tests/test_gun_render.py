@@ -41,5 +41,23 @@ assert images[0].tobytes()!=images[7].tobytes(),'Trigger must move independently
 body=(0,370,w,h)
 assert ImageChops.difference(images[0].crop(body),images[5].crop(body)).getbbox() is None,'Whole gun moved instead of its slide'
 assert sum(p!=images[0].getpixel((0,0)) for p in images[0].crop(body).get_flattened_data())>1000,'Body comparison must contain gun pixels'
+namco=bind(lib,'namco_fixture',I,C.c_char_p,I,I,C.c_float,I,I,P)
+surface=bind(egl,'eglCreatePbufferSurface',P,P,P,P)(display,config,(I*5)(0x3057,w,0x3056,h,0x3038))
+context=bind(egl,'eglCreateContext',P,P,P,P,P)(display,config,None,(I*3)(0x3098,3,0x3038))
+assert surface and context and current(display,surface,surface,context)
+namco_images={}
+for hand in range(2):
+    for eye,age in [(0,0),(1,0),(2,0),(0,18),(0,160)]:
+        pixels=(C.c_ubyte*(w*h*4))()
+        status=namco(str(ROOT/'quest/assets/models/namco-gun.tcgun').encode(),eye,hand,age,w,h,pixels)
+        assert status==1,(hand,eye,age,status)
+        im=Image.frombytes('RGBA',(w,h),bytes(pixels)).transpose(Image.Transpose.FLIP_TOP_BOTTOM).convert('RGB')
+        namco_images[hand,eye,age]=im
+        assert sum(p!=im.getpixel((0,0)) for p in im.get_flattened_data())>1500
+        im.save(ROOT/f'artifacts/namco-gun-{hand}-{eye}-{age}.png')
+    assert namco_images[hand,1,0].tobytes()!=namco_images[hand,2,0].tobytes(),'Missing Namco stereo disparity'
+    assert namco_images[hand,0,0].tobytes()!=namco_images[hand,0,18].tobytes(),'Missing Namco recoil'
+    assert namco_images[hand,0,0].tobytes()==namco_images[hand,0,160].tobytes(),'Namco recoil must return to rest'
+current(display,None,None,None);bind(egl,'eglDestroyContext',U,P,P)(display,context);bind(egl,'eglDestroySurface',U,P,P)(display,surface)
 bind(egl,'eglTerminate',U,P)(display)
-print('PASS: arcade gun visible in eight views, stereo, separate slide/trigger motion, stationary grip, 150 ms return and stable muzzle; no GLES errors.')
+print('PASS: blue Namco gun in both hands, stereo, recoil, return to rest, rotated/stable muzzle; fallback pistol in eight views with slide/trigger animation; no GLES errors.')

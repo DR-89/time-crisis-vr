@@ -57,10 +57,14 @@ def package_manifest(bundle_roms):
 
 def package(assets):
     models=assets/'models';models.mkdir(exist_ok=True)
-    model=ROOT/'quest/assets/models/player-gun.tcgun'
-    if not model.is_file():raise RuntimeError('Missing player gun asset: '+str(model))
-    shutil.copy2(model,models/model.name)
-    (assets/'models.sha256').write_text(hashlib.sha256(model.read_bytes()).hexdigest()+'  '+model.name+'\n',encoding='ascii')
+    model_manifest=[]
+    for name in ('namco-gun.tcgun','player-gun.tcgun'):
+        model=ROOT/'quest/assets/models'/name
+        if not model.is_file():raise RuntimeError('Missing player gun asset: '+str(model))
+        shutil.copy2(model,models/name)
+        model_manifest.append(hashlib.sha256(model.read_bytes()).hexdigest()+'  '+name)
+        shutil.copy2(model.with_suffix('.json'),models/model.with_suffix('.json').name)
+    (assets/'models.sha256').write_text('\n'.join(model_manifest)+'\n',encoding='ascii')
     bt=ROOT/'.tools/buildtools/android-15';android=ROOT/'.tools/platform/android-34-ext12/android.jar'
     classes=BUILD/'classes';classes.mkdir(exist_ok=True)
     sources=list((ROOT/'.tools/sdl/SDL2-2.30.11/android-project/app/src/main/java').rglob('*.java'))+list((ROOT/'quest/java').rglob('*.java'))

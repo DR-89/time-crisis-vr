@@ -29,6 +29,9 @@ with tempfile.TemporaryDirectory(prefix='tcvr-pc-test-') as temp:
     subprocess.run([game/'TimeCrisisVR.exe','--desktop','--no-dialog','--frames','601'],env=env,startupinfo=startup,check=True,timeout=45)
     log=(game/'timecris.log').read_text()
     assert '[OPTIONS] laser ON' in log
+    assert '[GUN] models/namco-gun.tcgun loaded: 13149 vertices, 17108 triangles; textured mesh with recoil' in log
+    assert (game/'models/namco-gun.tcgun').read_bytes()==(ROOT/'quest/assets/models/namco-gun.tcgun').read_bytes()
+    assert 'Martoscar' in (game/'NOTICE.md').read_text(encoding='utf-8')
     assert 'stop at frame 601, 0 traps' in log
     assert not re.search(r'\[TRAP\]|\[GL\].*error|Shader:|fault [1-9]',log)
     image=(game/'eye-0.ppm').read_bytes().split(b'\n',3)[3]
