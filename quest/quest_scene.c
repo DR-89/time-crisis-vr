@@ -73,6 +73,13 @@ void qvr_scene_quad(const geo_quad *q){
     for(int i=1;i+1<q->nrv&&count<65536;i++)triangles[count++]=(Triangle){v[0],v[i],v[i+1],camera};
 }
 static bool impact(const sprite_item *it){return it->tile>=QVR_IMPACT_FIRST&&it->tile<=QVR_IMPACT_LAST&&it->z==0;}
+/* Metres from the camera for a sprite that lives in the world, or 0 for HUD art.
+ * The low 21 bits of a sprite's z are the same view-space depth as a polygon
+ * vertex's z (bits 23:21 are the priority band), so they convert the same way. */
+static float world_sprite_depth(const sprite_item *it){
+    uint32_t depth=it->z&0x1FFFFFu;
+    return depth>QVR_HUD_ZMAX?(float)depth/qvr_units_per_meter:0;
+}
 static void build_grid(void){
     for(int i=0;i<GRID_W*GRID_H;i++)grid[i]=-1;
     link_count=0;grid_overflow=false;
@@ -119,7 +126,7 @@ void qvr_sprites_prepare(const sprite_item *items,int n){
                 sprites[i].depth=surface_depth(items[i].x0+items[i].w*.5f,items[i].y0+items[i].h*.5f);
             }
             if(diagnostic)fprintf(stderr,"[IMPACT] frame %u tile %d key %u xy %d %d size %d %d depth %.4f\n",frame_number,items[i].tile,items[i].z,items[i].x0,items[i].y0,items[i].w,items[i].h,sprites[i].depth);
-        }
+        }else if(!qvr_flat_view)sprites[i].depth=world_sprite_depth(&items[i]);
     }
 }
 bool qvr_sprite_corners(const sprite_item *it,int slot,float out[4][4]){
