@@ -13,6 +13,8 @@
     <provider android:authorities="org.khronos.openxr.runtime_broker;org.khronos.openxr.system_runtime_broker" />
     <intent><action android:name="org.khronos.openxr.OpenXRRuntimeService" /></intent>
     <intent><action android:name="org.khronos.openxr.OpenXRApiLayerService" /></intent>
+    <!-- Launcher to return to when the menu button is held (MainActivity.returnToLauncher). -->
+    <package android:name="com.tremu.app" />
   </queries>
   <application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:banner="@drawable/launcher_banner" android:label="Time Crisis VR (Experimental)" android:allowBackup="false" android:debuggable="true" android:extractNativeLibs="true" android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" android:hardwareAccelerated="true">
     <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|quest3|quest3s" />

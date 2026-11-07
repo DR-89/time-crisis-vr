@@ -313,6 +313,31 @@ static bool actions_init(void){
     return true;
 }
 /* Fresh edges only: a held button across focus/tracking loss cannot change a setting. */
+static bool held(XrAction a){
+    XrActionStateGetInfo info={XR_TYPE_ACTION_STATE_GET_INFO};info.action=a;
+    XrActionStateBoolean s={XR_TYPE_ACTION_STATE_BOOLEAN};
+    return XR_SUCCEEDED(xrGetActionStateBoolean(session,&info,&s))&&s.isActive&&s.currentState;
+}
+/* Holding the left menu button 1.5 s returns to the Tremu carousel (Java does the switch). */
+static void check_return_to_launcher(XrTime time){
+#ifndef TCVR_PC
+    static XrTime down;static bool asked;
+    if(!held(pause_action)){down=0;asked=false;return;}
+    if(!down)down=time;
+    if(asked||time-down<1500000000LL)return;
+    asked=true;
+    JNIEnv *env=SDL_AndroidGetJNIEnv();jobject activity=SDL_AndroidGetActivity();
+    jclass cls=(*env)->GetObjectClass(env,activity);
+    jmethodID m=(*env)->GetMethodID(env,cls,"returnToLauncher","()Z");
+    bool ok=m&&(*env)->CallBooleanMethod(env,activity,m);
+    if((*env)->ExceptionCheck(env))(*env)->ExceptionClear(env);
+    (*env)->DeleteLocalRef(env,cls);(*env)->DeleteLocalRef(env,activity);
+    fprintf(stderr,"[XR] return to Tremu: %s\n",ok?"yes":"Tremu not installed");
+    if(ok)quit=true;
+#else
+    (void)time;
+#endif
+}
 static bool pressed(XrAction a,XrPath hand,ButtonEdge *button){
     XrActionStateGetInfo info={XR_TYPE_ACTION_STATE_GET_INFO};info.action=a;info.subactionPath=hand;
     XrActionStateBoolean s={XR_TYPE_ACTION_STATE_BOOLEAN};
@@ -448,6 +473,7 @@ static void sync_input(XrTime time,bool head_tracked,float head_y){
     if(!focused){reset_input_edges();return;}
     XrActiveActionSet aset={action_set,XR_NULL_PATH};XrActionsSyncInfo sync={XR_TYPE_ACTIONS_SYNC_INFO};sync.countActiveActionSets=1;sync.activeActionSets=&aset;
     if(!XR(xrSyncActions(session,&sync))){reset_input_edges();return;}
+    check_return_to_launcher(time);
     if(pressed(pause_action,XR_NULL_PATH,&pause_button)){paused=!paused;filter_armed=false;reset_fire_input();reset_pitch_input();reset_distance_input();game_deadline=0;eng_audio_set_volume(paused?0:100);ss22_input_neutral();}
     adjust_texture_filter();
     bool change_hand=pressed(hand_action,XR_NULL_PATH,&hand_button);

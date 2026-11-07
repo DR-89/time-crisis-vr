@@ -109,6 +109,7 @@ static void panel(const QOptions *options,int page,bool saved){
     text(24,402,left_handed?"A RIGHT: RECENTER / CALIBRATE":"X LEFT: RECENTER / CALIBRATE",181,207,220);
     text(24,426,"LEFT UP/DOWN: CHANGE PAGE",181,207,220);
     text(24,454,saved?"LEFT MENU: RESUME":"SAVING FAILED",saved?170:255,saved?193:150,saved?206:150);
+    text(400,454,"HOLD: TREMU",181,207,220);
 }
 static GLuint shader(GLenum type,const char *source){
     GLuint s=glCreateShader(type);qgpu_shader_source(s,source);glCompileShader(s);GLint ok;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);

@@ -47,6 +47,20 @@ final class WonderFitterGun {
 
     private WonderFitterGun() {}
 
+    /** Releases the gun for another app (Tremu); start() reconnects when this game resumes. */
+    static void stop() {
+        if (adapter == null) return;
+        try {
+            if (scanning) adapter.getBluetoothLeScanner().stopScan(scanCallback);
+            if (gatt != null) { gatt.disconnect(); gatt.close(); }
+        } catch (SecurityException | NullPointerException e) {
+            android.util.Log.w(TAG, "Cannot release the gun: " + e);
+        }
+        scanning = false;
+        gatt = null;
+        adapter = null;
+    }
+
     static void start(Context ctx) {
         if (adapter != null) return;
         context = ctx.getApplicationContext();
