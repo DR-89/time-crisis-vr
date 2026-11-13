@@ -131,5 +131,23 @@ int main(void){
     for(int i=0;i<4;i++){q.rv[i].sx16=(i==1||i==2?640:0)*16;q.rv[i].sy16=(i>=2?480:0)*16;}
     qvr_scene_begin();for(int n=0;n<230;n++)qvr_scene_quad(&q);qvr_sprites_prepare(&mark,1);
     assert(qvr_sprite_corners(&mark,0,corners));near(corners[0][2],-29.4f);
-    puts("PASS: VR timing/math, supported refresh selection, camera-aligned HUD/aim, surface shot marks, nearest hit, grid overflow and unchanged desktop projection");return 0;
+    /* World effects (explosions, fire, sparks) sit at their own depth with the arcade footprint;
+     * HUD art (depth 0) stays on the flat plane. Layer bits 23:21 are not depth. */
+    assert(qvr_flat_camera(&cx,&cy,&focal));
+    sprite_item fx={.x0=200,.y0=120,.w=120,.h=100,.tile=7328,.z=0x200000u|240000u};
+    qvr_scene_begin();qvr_sprites_prepare(&fx,1);assert(qvr_sprite_corners(&fx,0,corners));
+    const float want=240000.f/qvr_units_per_meter;
+    for(int j=0;j<4;j++)near(corners[j][2],-want);
+    near(cx+focal*corners[0][0]/-corners[0][2],200);near(cy-focal*corners[0][1]/-corners[0][2],120);
+    near(cx+focal*corners[2][0]/-corners[2][2],320);near(cy-focal*corners[2][1]/-corners[2][2],220);
+    qvr_world_scale=2;qvr_view_distance=.5f;assert(qvr_sprite_corners(&fx,0,corners));
+    near(corners[0][2],-want*2-.5f);near(cx+focal*corners[0][0]/-(corners[0][2]+qvr_view_distance),200);
+    qvr_world_scale=1;qvr_view_distance=0;
+    fx.z=0x200000u|240000u;qvr_sprites_prepare(&fx,1);assert(qvr_sprite_corners(&fx,0,corners));
+    fx.z=0x200000u|(QVR_HUD_ZMAX+1);qvr_sprites_prepare(&fx,1);assert(qvr_sprite_corners(&fx,0,corners));
+    fx.z=QVR_HUD_ZMAX;qvr_sprites_prepare(&fx,1);assert(!qvr_sprite_corners(&fx,0,corners));
+    fx.z=0x200000u;qvr_sprites_prepare(&fx,1);assert(!qvr_sprite_corners(&fx,0,corners));
+    fx.z=0;qvr_sprites_prepare(&fx,1);assert(!qvr_sprite_corners(&fx,0,corners));
+    fx.z=240000u;qvr_flat_view=1;qvr_sprites_prepare(&fx,1);assert(!qvr_sprite_corners(&fx,0,corners));qvr_flat_view=0;
+    puts("PASS: VR timing/math, supported refresh selection, camera-aligned HUD/aim, surface shot marks, world-depth effects, nearest hit, grid overflow and unchanged desktop projection");return 0;
 }
