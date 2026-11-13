@@ -12,7 +12,7 @@ enum { WIDTH=640,HEIGHT=480 };
 static GLuint program,vao,vbo,texture;
 static GLint u_view,u_projection,u_texture;
 static int last_state=-1;
-static int last_pitch,last_scale,last_distance;
+static int last_pitch,last_scale,last_distance,last_drop,last_back;
 static uint8_t pixels[WIDTH*HEIGHT*4];
 
 static void text(int x,int y,const char *s,uint8_t r,uint8_t g,uint8_t b){
@@ -59,6 +59,22 @@ static void graphics_panel(const QOptions *options,bool saved){
     text(24,426,"LEFT UP/DOWN: CHANGE PAGE",181,207,220);
     text(24,454,saved?"LEFT MENU: RESUME":"SAVING FAILED",saved?170:255,saved?193:150,saved?206:150);
 }
+static void gun_panel(const QOptions *options,bool saved){
+    char label[40];
+    text(24,20,"GUN POSITION",181,207,220);
+    text(24,54,"MOVES THE GUN FROM THE CONTROLLER",255,255,255);
+    text(24,78,"ALONG THE ANGLED BARREL",255,255,255);
+    snprintf(label,sizeof label,"DOWN: %d CM",options->gun_drop);text(24,122,label,255,255,255);
+    text(24,146,"RIGHT STICK UP / DOWN: ADJUST",181,207,220);
+    snprintf(label,sizeof label,"BACK: %d CM",options->gun_back);text(24,190,label,255,255,255);
+    text(24,214,"RIGHT STICK LEFT / RIGHT: ADJUST",181,207,220);
+    snprintf(label,sizeof label,"GUN ANGLE: %+d DEG (MAIN PAGE)",options->gun_pitch);text(24,258,label,255,202,110);
+    text(24,302,"FOR A CONTROLLER MOUNTED ON TOP",181,207,220);
+    text(24,326,"OF A PHYSICAL GUN",181,207,220);
+    text(24,370,"LEFT CLICK: RESET TO 0",181,207,220);
+    text(24,426,"LEFT UP/DOWN: CHANGE PAGE",181,207,220);
+    text(24,454,saved?"LEFT MENU: RESUME":"SAVING FAILED",saved?170:255,saved?193:150,saved?206:150);
+}
 static void panel(const QOptions *options,int page,bool saved){
     bool laser=options->laser_enabled,physical_crouch=options->physical_crouch,left_handed=options->left_handed,texture_filtering=options->texture_filtering;
     int gun_pitch=options->gun_pitch,world_scale=options->world_scale,view_distance=options->view_distance;
@@ -67,6 +83,7 @@ static void panel(const QOptions *options,int page,bool saved){
         p[0]=border?54:12;p[1]=border?183:19;p[2]=border?207:29;p[3]=border?255:240;
     }
     if(page==QOPTIONS_PAGE_GRAPHICS){graphics_panel(options,saved);return;}
+    if(page==QOPTIONS_PAGE_GUN){gun_panel(options,saved);return;}
     text(24,20,"PAUSE / OPTIONS",181,207,220);
     text(24,54,left_handed?"DEFAULT HAND: LEFT":"DEFAULT HAND: RIGHT",255,255,255);
     text(24,78,"RIGHT STICK CLICK: CHANGE DEFAULT",181,207,220);
@@ -90,8 +107,9 @@ static void panel(const QOptions *options,int page,bool saved){
     text(24,352,left_handed?"B RIGHT: CHANGE MODE":"Y LEFT: CHANGE MODE",181,207,220);
     text(24,378,texture_filtering?"TEXTURE FILTERING: ON":"TEXTURE FILTERING: OFF",255,202,110);text(448,378,"LEFT GRIP",181,207,220);
     text(24,402,left_handed?"A RIGHT: RECENTER / CALIBRATE":"X LEFT: RECENTER / CALIBRATE",181,207,220);
-    text(24,426,"LEFT UP/DOWN: GRAPHICS",181,207,220);
+    text(24,426,"LEFT UP/DOWN: CHANGE PAGE",181,207,220);
     text(24,454,saved?"LEFT MENU: RESUME":"SAVING FAILED",saved?170:255,saved?193:150,saved?206:150);
+    text(400,454,"HOLD: TREMU",181,207,220);
 }
 static GLuint shader(GLenum type,const char *source){
     GLuint s=glCreateShader(type);qgpu_shader_source(s,source);glCompileShader(s);GLint ok;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);
@@ -113,8 +131,10 @@ void qui_draw(const float view[16],const float projection[16],V3 head,Q4 rotatio
     if(!program)return;
     GLint bound,unit;glGetIntegerv(GL_ACTIVE_TEXTURE,&unit);glActiveTexture(GL_TEXTURE0);glGetIntegerv(GL_TEXTURE_BINDING_2D,&bound);glBindTexture(GL_TEXTURE_2D,texture);
     int state=(physical_crouch?1:0)|(laser?2:0)|(saved?4:0)|(left_handed?8:0)|(texture_filtering?16:0)|(page<<8);
-    if(last_state!=state||last_pitch!=gun_pitch||last_scale!=world_scale||last_distance!=view_distance||last_resolution!=options->resolution){
+    if(last_state!=state||last_pitch!=gun_pitch||last_scale!=world_scale||last_distance!=view_distance||last_resolution!=options->resolution||
+       last_drop!=options->gun_drop||last_back!=options->gun_back){
         panel(options,page,saved);last_resolution=options->resolution;last_pitch=gun_pitch;last_scale=world_scale;last_distance=view_distance;
+        last_drop=options->gun_drop;last_back=options->gun_back;
         GLint row_length;glGetIntegerv(GL_UNPACK_ROW_LENGTH,&row_length);glPixelStorei(GL_UNPACK_ROW_LENGTH,0);
         glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,WIDTH,HEIGHT,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels);glPixelStorei(GL_UNPACK_ROW_LENGTH,row_length);
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);

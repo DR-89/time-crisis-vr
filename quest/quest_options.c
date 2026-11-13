@@ -42,6 +42,20 @@ void qoptions_load(const char *path,QOptions *options){
                 if(!*end)options->gun_pitch=(int)pitch;
             }
         }
+        if(!strncmp(line,"gun_drop=",9)){
+            char *end;errno=0;long drop=strtol(line+9,&end,10);
+            if(end!=line+9&&!errno&&drop>=QOPTIONS_GUN_DROP_MIN&&drop<=QOPTIONS_GUN_DROP_MAX){
+                while(isspace((unsigned char)*end))end++;
+                if(!*end)options->gun_drop=(int)drop;
+            }
+        }
+        if(!strncmp(line,"gun_back=",9)){
+            char *end;errno=0;long back=strtol(line+9,&end,10);
+            if(end!=line+9&&!errno&&back>=QOPTIONS_GUN_BACK_MIN&&back<=QOPTIONS_GUN_BACK_MAX){
+                while(isspace((unsigned char)*end))end++;
+                if(!*end)options->gun_back=(int)back;
+            }
+        }
         if(!strncmp(line,"view_distance=",14)){
             char *end;errno=0;long distance=strtol(line+14,&end,10);
             if(end!=line+14&&!errno&&distance>=QOPTIONS_VIEW_DISTANCE_MIN&&distance<=QOPTIONS_VIEW_DISTANCE_MAX){
@@ -54,7 +68,7 @@ void qoptions_load(const char *path,QOptions *options){
 }
 bool qoptions_save(const char *path,const QOptions *options){
     FILE *f=fopen(path,"w");if(!f)return false;
-    bool ok=fprintf(f,"resolution=%d\ntexture_filtering=%d\nlaser_enabled=%d\nphysical_crouch=%d\nleft_handed=%d\ngun_pitch=%d\nworld_scale=%d\nview_distance=%d\n",options->resolution,options->texture_filtering?1:0,options->laser_enabled?1:0,options->physical_crouch?1:0,options->left_handed?1:0,options->gun_pitch,options->world_scale,options->view_distance)>0;
+    bool ok=fprintf(f,"resolution=%d\ntexture_filtering=%d\nlaser_enabled=%d\nphysical_crouch=%d\nleft_handed=%d\ngun_pitch=%d\nworld_scale=%d\nview_distance=%d\ngun_drop=%d\ngun_back=%d\n",options->resolution,options->texture_filtering?1:0,options->laser_enabled?1:0,options->physical_crouch?1:0,options->left_handed?1:0,options->gun_pitch,options->world_scale,options->view_distance,options->gun_drop,options->gun_back)>0;
     if(fclose(f))ok=false;
     return ok;
 }

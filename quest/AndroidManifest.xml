@@ -5,12 +5,16 @@
   <uses-feature android:name="android.hardware.vr.headtracking" android:version="1" android:required="true" />
   <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
   <uses-permission android:name="android.permission.VIBRATE" />
+  <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+  <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
   <uses-permission android:name="org.khronos.openxr.permission.OPENXR" />
   <uses-permission android:name="org.khronos.openxr.permission.OPENXR_SYSTEM" />
   <queries>
     <provider android:authorities="org.khronos.openxr.runtime_broker;org.khronos.openxr.system_runtime_broker" />
     <intent><action android:name="org.khronos.openxr.OpenXRRuntimeService" /></intent>
     <intent><action android:name="org.khronos.openxr.OpenXRApiLayerService" /></intent>
+    <!-- Launcher to return to when the menu button is held (MainActivity.returnToLauncher). -->
+    <package android:name="com.tremu.app" />
   </queries>
   <application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:banner="@drawable/launcher_banner" android:label="Time Crisis VR (Experimental)" android:allowBackup="false" android:debuggable="true" android:extractNativeLibs="true" android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" android:hardwareAccelerated="true">
     <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|quest3|quest3s" />
