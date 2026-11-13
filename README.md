@@ -12,7 +12,9 @@ An experimental VR port of **Time Crisis** for **Meta Quest** and **Windows PCVR
 
 ## Current status
 
-**[v0.9.4](https://github.com/DR-89/time-crisis-vr/releases/tag/v0.9.4) — Quest ARM64 and Windows x64.** The default tracked weapon is now the blue Namco arcade
+**[v0.9.5](https://github.com/DR-89/time-crisis-vr/releases/tag/v0.9.5) — Quest ARM64 and Windows x64.** Explosions, fire and other world sprite effects now use their arcade depth in VR instead of sitting on the flat HUD plane. HUD art remains flat, shot marks still use the hit surface, and normal desktop rendering is unchanged. Effects follow saved world-size and view-distance settings. Thanks to [RichardGG](https://github.com/RichardGG) for [PR #10](https://github.com/DR-89/time-crisis-vr/pull/10). See the [release notes](docs/RELEASE_NOTES_0.9.5.md).
+
+The default tracked weapon introduced in v0.9.4 is the blue Namco arcade
 pistol, matching Time Crisis II VR and Crisis Zone VR. It uses the same calibrated
 grip and muzzle, textured model and whole-gun recoil in both hands on Quest and
 PCVR. The previous pistol remains a fallback. See the [release notes](docs/RELEASE_NOTES_0.9.4.md) and [weapon details](docs/WEAPONS.md).
@@ -246,7 +248,7 @@ Output:
 - Bundled: `artifacts/bundled/TimeCrisisVR-with-ROM.apk`
 - ROM-free: `artifacts/TimeCrisisVR-quest3-debug.apk`
 - Build metadata and SHA-256: `build-info.json` beside the corresponding APK.
-- Windows: `artifacts/pc/TimeCrisisVR-v0.9.4-windows-x64.zip` and its `.sha256` file.
+- Windows: `artifacts/pc/TimeCrisisVR-v0.9.5-windows-x64.zip` and its `.sha256` file.
 
 The bootstrap downloads pinned NDK r27c, API 34, Build Tools 35.0.0, SDL 2.30.11, OpenXR loader 1.1.43 and Ninja 1.12.1 into `.tools/`. The first build takes several minutes and multiple GB. It does not install a global Android SDK. CMake and the JDK must already be installed.
 

@@ -34,7 +34,7 @@ static void rect(float x,float y,float w,float h){
 /* Actual near-cover depth from a stage-one replay. Exercise scene conversion,
  * streamed vertices, both eye matrices and (on Quest) the multiview array blit. */
 #ifdef TEST_SCENE_TARGET
-__declspec(dllexport) int world_scale_fixture(float size,float distance,float head,int eye,int w,int h,uint8_t *out){
+__declspec(dllexport) int world_scale_fixture(float size,float distance,float head,int eye,int sprite,int w,int h,uint8_t *out){
     post_w=post_h=0;active=0;texture_on[0]=texture_on[1]=0;
     if(!qgl_init())return 0;
     float views[2][16],projs[2][16];
@@ -56,8 +56,18 @@ __declspec(dllexport) int world_scale_fixture(float size,float distance,float he
     geo_quad q={0};q.vr_focal=772.5625f;q.vr_cx=320;q.vr_cy=240;
     qvr_world_scale=size;qvr_view_distance=distance;qvr_flat_view=0;
     const float xy[4][2]={{300,180},{340,180},{340,220},{300,220}};
+    float corners[4][4];
+    if(sprite){
+        /* A real sprite, including priority bits, must match a polygon at the
+         * same camera depth through both production eye-rendering paths. */
+        q.nrv=4;
+        for(int i=0;i<4;i++){q.rv[i].sx16=(int)(xy[i][0]*16);q.rv[i].sy16=(int)(xy[i][1]*16);q.rv[i].z=15337;}
+        sprite_item fx={.x0=300,.y0=180,.w=40,.h=40,.tile=7328,.z=0x600000u|15337u};
+        qvr_scene_begin();qvr_scene_quad(&q);qvr_sprites_prepare(&fx,1);
+        if(!qvr_sprite_corners(&fx,0,corners))return -30;
+    }
     qglColor4f(0,1,0,1);qglBegin(GL_QUADS);
-    for(int i=0;i<4;i++){float p[4];qvr_vertex(&q,xy[i][0],xy[i][1],15337,p);qglVertex4f(p[0],p[1],p[2],p[3]);}
+    for(int i=0;i<4;i++){float p[4];if(sprite)memcpy(p,corners[i],sizeof p);else qvr_vertex(&q,xy[i][0],xy[i][1],15337,p);qglVertex4f(p[0],p[1],p[2],p[3]);}
     qglEnd();
     qgl_flat_camera(320,240,772.5625f);qglColor4f(1,0,0,1);rect(300,300,40,40);
     qgl_flush();

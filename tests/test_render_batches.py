@@ -86,7 +86,7 @@ if not a.reference:
     assert projected[1]==projected[2],'Flat sprites and reconstructed camera rays do not align off-centre'
     print('PASS: flat sprite grid matches reconstructed polygons pixel-for-pixel; old 500 px projection differs.')
 if not a.reference:
-    scale_render=bind(lib,'world_scale_fixture',I,C.c_float,C.c_float,C.c_float,I,I,I,P)
+    scale_render=bind(lib,'world_scale_fixture',I,C.c_float,C.c_float,C.c_float,I,I,I,I,P)
     centres={};widths={};measurements=[]
     for size in (.25,1,4):
       for distance in (0,.4,1):
@@ -96,7 +96,9 @@ if not a.reference:
                 surface=bind(egl,'eglCreatePbufferSurface',P,P,P,P)(display,config,(I*5)(0x3057,w,0x3056,h,0x3038))
                 context=bind(egl,'eglCreateContext',P,P,P,P,P)(display,config,None,(I*3)(0x3098,3,0x3038))
                 assert surface and context and make_current(display,surface,surface,context)
-                pixels=(C.c_ubyte*(w*h*4))();assert scale_render(size,distance,head,eye,w,h,pixels)==1
+                pixels=(C.c_ubyte*(w*h*4))();assert scale_render(size,distance,head,eye,0,w,h,pixels)==1
+                sprite_pixels=(C.c_ubyte*(w*h*4))();assert scale_render(size,distance,head,eye,1,w,h,sprite_pixels)==1
+                assert bytes(sprite_pixels)==bytes(pixels),'World sprite differs from polygon at equal depth'
                 for channel in (0,1):
                     hits=[n//4 for n in range(0,len(pixels),4) if pixels[n+channel]>200]
                     assert hits,'Missing world or HUD marker'
@@ -121,7 +123,7 @@ if not a.reference:
                     assert centres[size,distance,head,eye,0]==centres[1,0,head,eye,0],'HUD moved with world settings'
                     assert widths[size,distance,head,eye,0]==widths[1,0,head,eye,0],'HUD resized with world settings'
     (out/('scale-multiview.json' if a.multiview else 'scale-stereo.json')).write_text(json.dumps(measurements,indent=2))
-    print('PASS: measured cover depth, 25/100/400% stereo and 12 cm head parallax; view distance visibly shrinks cover without changing HUD.')
+    print('PASS: world sprites match equal-depth polygons pixel-for-pixel at 25/100/400% scale, all tested view distances, both eyes and 12 cm head parallax; HUD unchanged.')
 if not a.reference:
     filter_render=bind(lib,'texture_filter_fixture',I,I,I,P)
     for atlas in (0,1):

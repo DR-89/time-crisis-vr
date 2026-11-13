@@ -1,5 +1,7 @@
 # Time Crisis VR for Windows
 
+**v0.9.5:** explosions, fire and other world effects now use their arcade depth in VR. HUD placement, surface shot marks and normal desktop rendering are preserved. No settings changes are required.
+
 **v0.9.4:** the blue Namco arcade pistol is the default tracked weapon, matching
 Time Crisis II VR and Crisis Zone VR. It supports both hands, saved gun angle
 and whole-gun recoil. Keep `models/namco-gun.tcgun` with the package; the older
